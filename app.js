@@ -2024,6 +2024,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProducts();
     });
 
+    // Load Cloud button on Data tab
+    document.getElementById('cloud-refresh-btn')?.addEventListener('click', async () => {
+        if (!API.url) {
+            showToast(currentLang === 'vi' ? 'Chưa cấu hình API URL (vào Settings)' : 'API URL not configured');
+            return;
+        }
+        const btn = document.getElementById('cloud-refresh-btn');
+        btn.textContent = '⏳';
+        btn.disabled = true;
+        try {
+            await syncFromCloud();
+            showToast(currentLang === 'vi' ? 'Đã tải dữ liệu từ Cloud!' : 'Loaded from Cloud!');
+        } catch (e) {
+            showToast(t('sync_failed'));
+        } finally {
+            btn.textContent = '☁️';
+            btn.disabled = false;
+        }
+    });
+
     // Login modal
     const loginSubmitBtn = document.getElementById('login-submit');
     if (loginSubmitBtn) {

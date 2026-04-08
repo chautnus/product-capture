@@ -89,9 +89,12 @@
 
         <!-- Data Screen -->
         <div class="screen" id="screen-products">
-            <div class="data-header" style="padding: 16px 0;">
-                <h2 style="font-size: 1.2rem; margin-bottom: 8px;" data-i18n="all_data">📁 All Data</h2>
-                <p style="color: var(--text-secondary); font-size: 0.9rem;" id="data-summary"></p>
+            <div class="data-header" style="padding: 16px 0; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="font-size: 1.2rem; margin-bottom: 4px;" data-i18n="all_data">📁 All Data</h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;" id="data-summary"></p>
+                </div>
+                <button class="btn-icon" id="cloud-refresh-btn" title="Load from Cloud" style="width:44px;height:44px;font-size:20px;flex-shrink:0;">☁️</button>
             </div>
             <div style="padding: 0 0 12px; position: relative;">
                 <input type="search" class="form-input" id="product-search-input"
