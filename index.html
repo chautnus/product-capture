@@ -336,32 +336,62 @@
     <!-- Toast -->
     <div class="toast" id="toast">Saved!</div>
 
+    <!-- Add User Modal -->
+    <div class="modal-overlay" id="modal-add-user">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">Add User</span>
+                <button class="modal-close" onclick="closeModal('modal-add-user')">×</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;padding:4px 0;">
+                <input type="text" class="form-input" id="new-user-username" placeholder="Username" autocapitalize="none">
+                <input type="password" class="form-input" id="new-user-password" placeholder="Password">
+                <select class="form-input" id="new-user-role">
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                </select>
+                <input type="text" class="form-input" id="new-user-department" placeholder="Department (e.g. plants, pots)">
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px;">
+                <button class="btn btn-secondary" style="flex:1;" onclick="closeModal('modal-add-user')">Cancel</button>
+                <button class="btn btn-primary" style="flex:1;" id="confirm-add-user">Add</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Hidden file input for gallery -->
     <input type="file" id="gallery-input" accept="image/*" multiple style="display:none;">
 
     <!-- Login Modal -->
-    <div class="modal-overlay" id="modal-login" style="display:none; z-index: 9999;">
-        <div class="modal" style="max-width: 340px;">
-            <div class="modal-header" style="justify-content: center; border-bottom: none; padding-bottom: 0;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;color:var(--primary)">
+    <div class="modal-overlay" id="modal-login" style="align-items: center; z-index: 9999;">
+        <div class="modal" style="max-width: 340px; width: 92%; border-radius: 16px;">
+            <div style="text-align: center; padding: 20px 0 4px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:36px;height:36px;color:var(--primary)">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                     <circle cx="12" cy="13" r="4"/>
                 </svg>
+                <h2 style="margin: 8px 0 4px; font-size: 1.3rem;">ProductSnap</h2>
+                <p style="color: var(--text-secondary); font-size: 0.82rem; margin: 0;">Đăng nhập để tiếp tục</p>
             </div>
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h2 style="margin: 8px 0 4px;">ProductSnap</h2>
-                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Đăng nhập để tiếp tục / Login to continue</p>
+            <div style="padding: 16px 0 4px;">
+                <input type="text" class="form-input" id="login-username" placeholder="Username"
+                       autocomplete="username" autocapitalize="none" style="margin-bottom: 10px;">
+                <input type="password" class="form-input" id="login-password" placeholder="Password"
+                       autocomplete="current-password">
+                <button class="btn btn-primary" id="login-submit" style="width: 100%; margin-top: 14px;" data-i18n="login">Login</button>
+                <p style="text-align: center; color: var(--text-secondary); font-size: 0.72rem; margin: 10px 0 0;">
+                    Mặc định: admin / admin123
+                </p>
             </div>
-            <div class="form-group">
-                <input type="text" class="form-input" id="login-username" placeholder="Username" autocomplete="username" autocapitalize="none">
+            <!-- First-time setup: shown when API URL not configured -->
+            <div id="login-setup-section" style="display:none; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 8px;">
+                <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0 0 8px;">
+                    ⚙️ Chưa có Apps Script URL. Nhập vào đây:
+                </p>
+                <input type="url" class="form-input" id="login-api-url-input"
+                       placeholder="https://script.google.com/macros/s/..." style="margin-bottom: 8px;">
+                <button class="btn btn-secondary" id="login-save-api-btn" style="width:100%; font-size: 0.85rem;">Lưu URL</button>
             </div>
-            <div class="form-group" style="margin-top: 10px;">
-                <input type="password" class="form-input" id="login-password" placeholder="Password" autocomplete="current-password">
-            </div>
-            <button class="btn btn-primary" id="login-submit" style="width: 100%; margin-top: 16px;" data-i18n="login">Login</button>
-            <p style="text-align: center; color: var(--text-secondary); font-size: 0.75rem; margin-top: 16px;">
-                Mặc định: admin / admin123
-            </p>
         </div>
     </div>
 

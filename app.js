@@ -597,7 +597,14 @@ function addToPending(type, data) {
 
 function removeFromPending(changeId) {
     syncState.pendingChanges = syncState.pendingChanges.filter(c => c.id !== changeId);
-    saveSyncState();
+    // Note: caller is responsible for calling saveSyncState() after batching
+}
+
+function removeFromPendingBatch(changeIds) {
+    // P5: batch remove to avoid N DOM updates in sync loop
+    const idSet = new Set(changeIds);
+    syncState.pendingChanges = syncState.pendingChanges.filter(c => !idSet.has(c.id));
+    saveSyncState(); // single save + single DOM update
 }
 
 function cleanupOldPendingChanges() {
@@ -650,7 +657,15 @@ function isAdmin() {
 function loadAuthState() {
     const saved = localStorage.getItem('productSnapUser');
     if (saved) {
-        try { currentUser = JSON.parse(saved); } catch (e) { currentUser = null; }
+        try {
+            const u = JSON.parse(saved);
+            // P0: reject offline fallback users (id='offline') — require real API auth
+            if (u && u.id && u.id !== 'offline' && u.username && u.role) {
+                currentUser = u;
+            } else {
+                localStorage.removeItem('productSnapUser');
+            }
+        } catch (e) { currentUser = null; }
     }
 }
 
@@ -660,15 +675,14 @@ function saveAuthState() {
 }
 
 function showLoginModal() {
-    const modal = document.getElementById('modal-login');
-    if (modal) modal.style.display = 'flex';
+    // P3: use .active class consistent with all other modals
+    openModal('modal-login');
     const usernameInput = document.getElementById('login-username');
-    if (usernameInput) usernameInput.focus();
+    if (usernameInput) setTimeout(() => usernameInput.focus(), 50);
 }
 
 function hideLoginModal() {
-    const modal = document.getElementById('modal-login');
-    if (modal) modal.style.display = 'none';
+    closeModal('modal-login');
 }
 
 async function submitLogin() {
@@ -681,13 +695,15 @@ async function submitLogin() {
     }
 
     if (!API.url) {
-        showToast(currentLang === 'vi' ? 'Chưa cấu hình API URL (vào Settings)' : 'API URL not configured (go to Settings)');
-        // Allow offline mode for now — store username only
-        currentUser = { id: 'offline', username, role: 'admin', department: '' };
-        saveAuthState();
-        hideLoginModal();
-        applyRoleUI();
-        showToast(currentLang === 'vi' ? `Xin chào, ${username}! (chế độ offline)` : `Welcome, ${username}! (offline mode)`);
+        // P0: show API URL setup section in the login modal
+        const setupSection = document.getElementById('login-setup-section');
+        if (setupSection) {
+            setupSection.style.display = 'block';
+            document.getElementById('login-api-url-input').focus();
+        }
+        showToast(currentLang === 'vi'
+            ? '⚙️ Nhập Apps Script URL bên dưới trước khi đăng nhập'
+            : '⚙️ Enter Apps Script URL below before logging in');
         return;
     }
 
@@ -743,63 +759,128 @@ function applyRoleUI() {
     if (admin) renderUsersSettings();
 }
 
+let _usersCache = null;
+let _usersCacheTs = 0;
+
 async function renderUsersSettings() {
     const container = document.getElementById('users-settings');
     if (!container || !API.url) return;
 
+    // P4: skip API call if cache is fresh (< 10 seconds)
+    const now = Date.now();
+    if (_usersCache && (now - _usersCacheTs) < 10000) {
+        buildUsersSettingsDOM(container, _usersCache);
+        return;
+    }
+
     try {
         const result = await API.getUsers();
         if (!result || !result.success) return;
-        container.innerHTML = result.users.map(u => `
-            <div class="settings-item" style="flex-direction: column; align-items: stretch; padding: 10px; background: var(--surface); border-radius: 8px; margin-bottom: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <strong>${u.username}</strong>
-                        <span class="field-tag" style="margin-left: 8px; background: ${u.role === 'admin' ? 'var(--primary)' : 'var(--surface-2)'}; color: ${u.role === 'admin' ? 'white' : 'inherit'}">${u.role}</span>
-                        ${u.department ? `<span class="field-tag" style="margin-left: 4px;">${u.department}</span>` : ''}
-                    </div>
-                    ${u.id !== currentUser?.id ? `<button class="btn-icon danger" onclick="deleteUser('${u.id}')">🗑️</button>` : ''}
-                </div>
-            </div>
-        `).join('');
+        _usersCache = result.users;
+        _usersCacheTs = Date.now();
+        buildUsersSettingsDOM(container, _usersCache);
     } catch (e) {
         console.error('Failed to load users:', e);
     }
+}
+
+function buildUsersSettingsDOM(container, users) {
+    // P1: safe DOM construction — no innerHTML with user-supplied data
+    container.innerHTML = '';
+    users.forEach(u => {
+        const row = document.createElement('div');
+        row.className = 'settings-item';
+        row.style.cssText = 'flex-direction:column;align-items:stretch;padding:10px;background:var(--surface);border-radius:8px;margin-bottom:8px;';
+
+        const inner = document.createElement('div');
+        inner.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+
+        const info = document.createElement('div');
+
+        const nameEl = document.createElement('strong');
+        nameEl.textContent = u.username;
+        info.appendChild(nameEl);
+
+        const roleTag = document.createElement('span');
+        roleTag.className = 'field-tag';
+        roleTag.style.cssText = `margin-left:8px;background:${u.role === 'admin' ? 'var(--primary)' : 'var(--surface-2)'};color:${u.role === 'admin' ? 'white' : 'inherit'}`;
+        roleTag.textContent = u.role;
+        info.appendChild(roleTag);
+
+        if (u.department) {
+            const deptTag = document.createElement('span');
+            deptTag.className = 'field-tag';
+            deptTag.style.marginLeft = '4px';
+            deptTag.textContent = u.department;
+            info.appendChild(deptTag);
+        }
+
+        inner.appendChild(info);
+
+        if (u.id !== currentUser?.id) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-icon danger';
+            delBtn.textContent = '🗑️';
+            delBtn.addEventListener('click', () => deleteUser(u.id));
+            inner.appendChild(delBtn);
+        }
+
+        row.appendChild(inner);
+        container.appendChild(row);
+    });
 }
 
 async function deleteUser(userId) {
     if (!confirm(currentLang === 'vi' ? 'Xóa người dùng này?' : 'Delete this user?')) return;
     const result = await API.deleteUser(userId);
     if (result && result.success) {
+        _usersCache = null; // invalidate cache
         showToast(t('user_deleted'));
         renderUsersSettings();
     }
 }
 
-async function addNewUser() {
-    const username = prompt(currentLang === 'vi' ? 'Tên đăng nhập:' : 'Username:');
-    if (!username) return;
-    const password = prompt(currentLang === 'vi' ? 'Mật khẩu:' : 'Password:');
-    if (!password) return;
-    const role = prompt(currentLang === 'vi' ? 'Vai trò (admin/user):' : 'Role (admin/user):', 'user');
-    if (!role) return;
-    const department = prompt(currentLang === 'vi' ? 'Bộ phận (để trống nếu không có):' : 'Department (leave empty if none):', '') || '';
+function addNewUser() {
+    // P2: use modal instead of prompt() — prompt() is blocked on mobile PWA
+    document.getElementById('new-user-username').value = '';
+    document.getElementById('new-user-password').value = '';
+    document.getElementById('new-user-role').value = 'user';
+    document.getElementById('new-user-department').value = '';
+    openModal('modal-add-user');
+}
 
-    const user = {
-        id: 'user_' + Date.now(),
-        username,
-        password,
-        role: role.toLowerCase() === 'admin' ? 'admin' : 'user',
-        department,
-        createdAt: new Date().toISOString()
-    };
+async function confirmAddUser() {
+    const username = document.getElementById('new-user-username').value.trim();
+    const password = document.getElementById('new-user-password').value.trim();
+    const role = document.getElementById('new-user-role').value;
+    const department = document.getElementById('new-user-department').value.trim();
 
-    const result = await API.addUser(user);
-    if (result && result.success) {
-        showToast(t('user_added'));
-        renderUsersSettings();
-    } else {
-        showToast(t('sync_failed'));
+    if (!username || !password) {
+        showToast(currentLang === 'vi' ? 'Nhập đầy đủ tên và mật khẩu' : 'Username and password required');
+        return;
+    }
+
+    const btn = document.getElementById('confirm-add-user');
+    btn.disabled = true;
+    try {
+        const user = {
+            id: 'user_' + Date.now(),
+            username, password,
+            role: role === 'admin' ? 'admin' : 'user',
+            department,
+            createdAt: new Date().toISOString()
+        };
+        const result = await API.addUser(user);
+        if (result && result.success) {
+            _usersCache = null;
+            closeModal('modal-add-user');
+            showToast(t('user_added'));
+            renderUsersSettings();
+        } else {
+            showToast(result?.error || t('sync_failed'));
+        }
+    } finally {
+        btn.disabled = false;
     }
 }
 
@@ -1767,8 +1848,9 @@ document.addEventListener('DOMContentLoaded', () => {
         closeModal('modal-confirm-delete');
     });
 
-    // Close modal on overlay click
+    // Close modal on overlay click (exclude login modal — user must explicitly login)
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        if (overlay.id === 'modal-login') return;
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
                 overlay.classList.remove('active');
@@ -1909,6 +1991,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginSubmitBtn) {
         loginSubmitBtn.addEventListener('click', submitLogin);
     }
+
+    // Login modal — save API URL inline
+    const loginSaveApiBtn = document.getElementById('login-save-api-btn');
+    if (loginSaveApiBtn) {
+        loginSaveApiBtn.addEventListener('click', () => {
+            const urlInput = document.getElementById('login-api-url-input');
+            const url = urlInput ? urlInput.value.trim() : '';
+            if (url) {
+                API.url = url;
+                localStorage.setItem('productSnapAPIUrl', url);
+                document.getElementById('api-url-input').value = url;
+                document.getElementById('login-setup-section').style.display = 'none';
+                showToast(currentLang === 'vi' ? 'Đã lưu URL! Đăng nhập lại.' : 'URL saved! Now login.');
+                document.getElementById('login-username').focus();
+            }
+        });
+    }
+
+    // Pre-fill login API URL if already set
+    if (API.url) {
+        const setupSection = document.getElementById('login-setup-section');
+        if (setupSection) setupSection.style.display = 'none';
+    }
     const loginPasswordInput = document.getElementById('login-password');
     if (loginPasswordInput) {
         loginPasswordInput.addEventListener('keydown', (e) => {
@@ -1923,6 +2028,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add user button
     const addUserBtn = document.getElementById('add-user');
     if (addUserBtn) addUserBtn.addEventListener('click', addNewUser);
+
+    // Confirm add user
+    const confirmAddUserBtn = document.getElementById('confirm-add-user');
+    if (confirmAddUserBtn) confirmAddUserBtn.addEventListener('click', confirmAddUser);
 
     // Show login or apply role UI
     if (!currentUser) {
@@ -1956,6 +2065,7 @@ async function syncPendingToCloud() {
 
     try {
         const pendingCopy = [...syncState.pendingChanges];
+        const syncedIds = []; // P5: collect IDs to batch-remove at the end
 
         for (const change of pendingCopy) {
             try {
@@ -1981,7 +2091,7 @@ async function syncPendingToCloud() {
                 }
 
                 if (result && result.success) {
-                    removeFromPending(change.id);
+                    syncedIds.push(change.id); // batch, not immediate
                     synced++;
                     console.log(`Synced: ${change.type} - ${change.data.id || change.data.name}`);
                 } else {
@@ -1992,6 +2102,11 @@ async function syncPendingToCloud() {
                 failed++;
                 console.error(`Error syncing ${change.type}:`, e);
             }
+        }
+
+        // P5: one batch removal = one saveSyncState() = one DOM update
+        if (syncedIds.length > 0) {
+            removeFromPendingBatch(syncedIds);
         }
     } finally {
         // A6: always reset isSyncing even if unexpected exception occurs
