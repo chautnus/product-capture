@@ -906,13 +906,23 @@ function removeImage(idx) {
 // ==================== CATEGORIES ====================
 function renderCategories() {
     const grid = document.getElementById('category-grid');
-    grid.innerHTML = appData.categories.map(cat => `
+    // Non-admin with department: only show their department's category
+    const visibleCats = (!isAdmin() && currentUser?.department)
+        ? appData.categories.filter(c => c.id === currentUser.department)
+        : appData.categories;
+
+    grid.innerHTML = visibleCats.map(cat => `
         <div class="category-card ${selectedCategory === cat.id ? 'selected' : ''}"
              onclick="selectCategory('${cat.id}')">
             <div class="icon">${cat.icon}</div>
             <div class="name">${cat.name[currentLang] || cat.name.en}</div>
         </div>
     `).join('');
+
+    // Auto-select if only one category visible
+    if (visibleCats.length === 1 && selectedCategory !== visibleCats[0].id) {
+        selectCategory(visibleCats[0].id);
+    }
 }
 
 function selectCategory(catId) {
@@ -1258,7 +1268,10 @@ async function renderProducts(filter = 'all') {
     const emptyState = document.getElementById('empty-products');
 
     let products = appData.products;
-    if (filter !== 'all') {
+    // Non-admin with department: only show their department's products
+    if (!isAdmin() && currentUser?.department) {
+        products = products.filter(p => p.category === currentUser.department);
+    } else if (filter !== 'all') {
         products = products.filter(p => p.category === filter);
     }
 
