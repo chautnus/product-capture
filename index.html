@@ -161,15 +161,17 @@
                         🔽 Sync from Cloud
                     </button>
                 </div>
-                <div class="settings-item" style="font-size: 0.78rem; color: var(--text-secondary); flex-direction: column; align-items: flex-start; gap: 4px;">
-                    <span>📱 Share Target (nhận ảnh từ app khác) chỉ hoạt động trên Android Chrome + đã cài PWA.</span>
-                    <span>iOS: dùng nút <strong>Select from Gallery</strong> ở tab Capture.</span>
-                </div>
                 <div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 6px;">
-                    <span style="font-size: 0.85rem; font-weight: 600;">PWA Status</span>
-                    <span id="pwa-installed-status" style="font-size: 0.8rem; color: var(--text-secondary);">Checking...</span>
-                    <span style="font-size: 0.78rem; color: var(--text-secondary);">SW: productsnap-v6</span>
-                    <span style="font-size: 0.78rem; color: var(--text-secondary);">💡 Nếu Share Target không hoạt động: gỡ app → mở Chrome → cài lại qua "Add to Home Screen"</span>
+                    <span style="font-size: 0.85rem; font-weight: 600;">App v<span id="app-version-display">-</span> · SW v7 · <span id="sw-version-display">-</span></span>
+                    <span id="pwa-installed-status" style="font-size: 0.8rem;">Checking...</span>
+                </div>
+                <div class="settings-item" style="font-size: 0.78rem; color: var(--text-secondary); flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <strong style="color: var(--text-primary);">Share Target (Android Chrome)</strong>
+                    <span>1. Gỡ app khỏi Home Screen</span>
+                    <span>2. Mở Chrome → vào app URL</span>
+                    <span>3. Menu ⋮ → "Add to Home Screen"</span>
+                    <span>4. Đợi 2–3 phút → thử share ảnh</span>
+                    <span style="color: var(--warning);">⚠️ iOS không hỗ trợ — dùng <strong>Select from Gallery</strong></span>
                 </div>
             </div>
 

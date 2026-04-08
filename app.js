@@ -511,6 +511,8 @@ let facingMode = 'environment';
 let currentUser = null; // {id, username, role, department}
 let productSearchTerm = '';
 
+const APP_VERSION = '4.4';
+
 // ==================== STORAGE FUNCTIONS ====================
 function loadData() {
     const saved = localStorage.getItem('productSnapData');
@@ -2098,14 +2100,24 @@ document.addEventListener('DOMContentLoaded', () => {
         applyRoleUI();
     }
 
-    // PWA installed status
+    // Version + PWA status
+    const verEl = document.getElementById('app-version-display');
+    if (verEl) verEl.textContent = APP_VERSION;
+
     const pwaStatusEl = document.getElementById('pwa-installed-status');
     if (pwaStatusEl) {
         const isInstalled = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
         pwaStatusEl.textContent = isInstalled
-            ? '✅ PWA đã cài đặt (standalone mode)'
-            : '⚠️ PWA chưa cài đặt — mở Chrome → Add to Home Screen';
+            ? '✅ PWA đã cài đặt (standalone)'
+            : '⚠️ Chưa cài — mở Chrome → Add to Home Screen';
         pwaStatusEl.style.color = isInstalled ? 'var(--success)' : 'var(--warning)';
+    }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(reg => {
+            const swEl = document.getElementById('sw-version-display');
+            if (swEl && reg) swEl.textContent = reg.active ? 'active' : reg.installing ? 'installing...' : 'waiting';
+        });
     }
 });
 

@@ -3,7 +3,7 @@
  * Handles: Share Target API, Offline caching, Background sync
  */
 
-const CACHE_NAME = 'productsnap-v6';
+const CACHE_NAME = 'productsnap-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

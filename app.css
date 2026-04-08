@@ -669,26 +669,27 @@ body {
     bottom: 0;
     left: 0;
     right: 0;
+    z-index: 100;
     background: rgba(15, 15, 26, 0.95);
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     display: flex;
-    justify-content: space-around;
-    padding: 10px 0;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 0;
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
 
 .nav-item {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 4px;
     background: none;
     border: none;
     color: var(--text-secondary);
     font-size: 0.75rem;
     cursor: pointer;
-    padding: 10px 20px;
     min-height: 52px;
     transition: all 0.2s;
     touch-action: manipulation;

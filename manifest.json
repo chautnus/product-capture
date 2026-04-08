@@ -12,13 +12,25 @@
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a2e' width='192' height='192' rx='32'/><path fill='none' stroke='%2300d9ff' stroke-width='8' d='M146 126a12 12 0 01-12 12H58a12 12 0 01-12-12V78a12 12 0 0112-12h24l12-18h36l12 18h24a12 12 0 0112 12z'/><circle fill='none' stroke='%2300d9ff' stroke-width='8' cx='96' cy='102' r='24'/></svg>",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a2e' width='192' height='192' rx='32'/><path fill='none' stroke='%2300d9ff' stroke-width='8' d='M146 126a12 12 0 01-12 12H58a12 12 0 01-12-12V78a12 12 0 0112-12h24l12-18h36l12 18h24a12 12 0 0112 12z'/><circle fill='none' stroke='%2300d9ff' stroke-width='8' cx='96' cy='102' r='24'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     },
     {
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%231a1a2e' width='512' height='512' rx='64'/><path fill='none' stroke='%2300d9ff' stroke-width='20' d='M389 336a32 32 0 01-32 32H155a32 32 0 01-32-32V208a32 32 0 0132-32h64l32-48h96l32 48h64a32 32 0 0132 32z'/><circle fill='none' stroke='%2300d9ff' stroke-width='20' cx='256' cy='272' r='64'/></svg>",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect fill='%231a1a2e' width='512' height='512' rx='64'/><path fill='none' stroke='%2300d9ff' stroke-width='20' d='M389 336a32 32 0 01-32 32H155a32 32 0 01-32-32V208a32 32 0 0132-32h64l32-48h96l32 48h64a32 32 0 0132 32z'/><circle fill='none' stroke='%2300d9ff' stroke-width='20' cx='256' cy='272' r='64'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "categories": ["productivity", "utilities", "photo"],
