@@ -938,6 +938,7 @@ async function startCamera() {
         preview.srcObject = cameraStream;
         document.getElementById('camera-placeholder').style.display = 'none';
         document.getElementById('stop-camera').style.display = 'flex';
+        document.querySelector('.camera-container')?.classList.add('camera-active');
     } catch (err) {
         console.error('Camera error:', err);
         alert('Could not access camera. Please check permissions.');
@@ -953,6 +954,7 @@ function stopCamera() {
     preview.srcObject = null;
     document.getElementById('camera-placeholder').style.display = 'flex';
     document.getElementById('stop-camera').style.display = 'none';
+    document.querySelector('.camera-container')?.classList.remove('camera-active');
 }
 
 function captureImage() {
