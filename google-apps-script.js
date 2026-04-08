@@ -28,9 +28,10 @@
 const CONFIG = {
   SHEETS: {
     DATA: 'Data',
-    CATEGORIES: 'Categories', 
+    CATEGORIES: 'Categories',
     SETTINGS: 'Settings',
-    PRODUCT_NAMES: 'ProductNames'
+    PRODUCT_NAMES: 'ProductNames',
+    USERS: 'Users'
   },
   IMAGES_FOLDER: 'ProductCapture_Images',
   // Các cột cố định trong sheet Data
@@ -114,7 +115,22 @@ function initialSetup() {
     productNamesSheet.setColumnWidth(2, 300); // Name column wider
   }
   
-  // 5. Tạo folder lưu ảnh
+  // 5. Tạo sheet Users
+  let usersSheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
+  if (!usersSheet) {
+    usersSheet = ss.insertSheet(CONFIG.SHEETS.USERS);
+    usersSheet.appendRow(['ID', 'Username', 'Password', 'Role', 'Department', 'Created At']);
+    usersSheet.getRange(1, 1, 1, 6)
+      .setFontWeight('bold')
+      .setBackground('#e06666')
+      .setFontColor('white');
+    usersSheet.setFrozenRows(1);
+    usersSheet.setColumnWidth(2, 180);
+    // Tạo tài khoản admin mặc định
+    usersSheet.appendRow(['user_' + Date.now(), 'admin', 'admin123', 'admin', '', new Date().toISOString()]);
+  }
+
+  // 6. Tạo folder lưu ảnh
   const folderId = createImagesFolder();
   
   // 6. Xóa sheet mặc định
@@ -132,7 +148,8 @@ function initialSetup() {
     '• Data - Lưu sản phẩm\n' +
     '• Categories - Danh mục\n' +
     '• ProductNames - Tên sản phẩm (autocomplete)\n' +
-    '• Settings - Cài đặt\n\n' +
+    '• Settings - Cài đặt\n' +
+    '• Users - Tài khoản (admin mặc định: admin / admin123)\n\n' +
     'Tiếp theo:\n' +
     '1. Deploy > New deployment > Web app\n' +
     '2. Execute as: Me\n' +
@@ -199,13 +216,19 @@ function doGet(e) {
       case 'getColumns':
         result = getDataColumns();
         break;
+      case 'login':
+        result = loginUser(e.parameter.username, e.parameter.password);
+        break;
+      case 'getUsers':
+        result = getUsers();
+        break;
       default:
         result = { success: false, error: 'Unknown action: ' + action };
     }
   } catch (error) {
     result = { success: false, error: error.toString() };
   }
-  
+
   return ContentService
     .createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
@@ -244,6 +267,15 @@ function doPost(e) {
         break;
       case 'deleteCategory':
         result = deleteCategory(data.id);
+        break;
+      case 'addUser':
+        result = addUser(data.user);
+        break;
+      case 'updateUser':
+        result = updateUser(data.user);
+        break;
+      case 'deleteUser':
+        result = deleteUser(data.id);
         break;
       default:
         result = { success: false, error: 'Unknown action: ' + action };
@@ -842,6 +874,132 @@ function deleteCategory(categoryId) {
   }
   
   return { success: false, error: 'Category not found' };
+}
+
+// ==================== USER MANAGEMENT ====================
+
+function loginUser(username, password) {
+  if (!username || !password) {
+    return { success: false, error: 'Username and password required' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
+
+  if (!sheet) {
+    return { success: false, error: 'Users sheet not found. Run initialSetup() first.' };
+  }
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    const [id, uname, pwd, role, department] = data[i];
+    if (uname === username && pwd === password) {
+      return {
+        success: true,
+        user: { id: String(id), username: uname, role: role || 'user', department: department || '' }
+      };
+    }
+  }
+
+  return { success: false, error: 'Invalid credentials' };
+}
+
+function getUsers() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
+
+  if (!sheet) return { success: false, error: 'Users sheet not found' };
+
+  const data = sheet.getDataRange().getValues();
+  const users = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const [id, username, , role, department, createdAt] = data[i];
+    if (id) {
+      users.push({ id: String(id), username, role: role || 'user', department: department || '', createdAt });
+    }
+  }
+
+  return { success: true, users };
+}
+
+function addUser(userData) {
+  if (!userData || !userData.username || !userData.password) {
+    return { success: false, error: 'Username and password required' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
+
+  if (!sheet) return { success: false, error: 'Users sheet not found' };
+
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === userData.username) {
+      return { success: false, error: 'Username already exists' };
+    }
+  }
+
+  const id = userData.id || ('user_' + Date.now());
+  sheet.appendRow([
+    id,
+    userData.username,
+    userData.password,
+    userData.role || 'user',
+    userData.department || '',
+    userData.createdAt || new Date().toISOString()
+  ]);
+
+  Logger.log('Added user: ' + userData.username);
+  return { success: true, id };
+}
+
+function updateUser(userData) {
+  if (!userData || !userData.id) {
+    return { success: false, error: 'User ID required' };
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
+
+  if (!sheet) return { success: false, error: 'Users sheet not found' };
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(userData.id)) {
+      const row = i + 1;
+      if (userData.username) sheet.getRange(row, 2).setValue(userData.username);
+      if (userData.password) sheet.getRange(row, 3).setValue(userData.password);
+      if (userData.role) sheet.getRange(row, 4).setValue(userData.role);
+      if (userData.department !== undefined) sheet.getRange(row, 5).setValue(userData.department);
+      return { success: true };
+    }
+  }
+
+  return { success: false, error: 'User not found' };
+}
+
+function deleteUser(userId) {
+  if (!userId) return { success: false, error: 'User ID required' };
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
+
+  if (!sheet) return { success: false, error: 'Users sheet not found' };
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(userId)) {
+      sheet.deleteRow(i + 1);
+      Logger.log('Deleted user: ' + userId);
+      return { success: true };
+    }
+  }
+
+  return { success: false, error: 'User not found' };
 }
 
 // ==================== TEST FUNCTIONS ====================

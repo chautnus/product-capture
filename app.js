@@ -226,7 +226,12 @@ const API = {
     async syncFields(fields) { return await this.call('syncFields', { fields }); },
     async deleteProduct(id) { return await this.call('deleteProduct', { id }); },
     async saveCategory(category) { return await this.call('saveCategory', { category }); },
-    async deleteCategory(id) { return await this.call('deleteCategory', { id }); }
+    async deleteCategory(id) { return await this.call('deleteCategory', { id }); },
+    async login(username, password) { return await this.get('login', { username, password }); },
+    async getUsers() { return await this.get('getUsers'); },
+    async addUser(user) { return await this.call('addUser', { user }); },
+    async updateUser(user) { return await this.call('updateUser', { user }); },
+    async deleteUser(id) { return await this.call('deleteUser', { id }); }
 };
 
 // Load API URL from localStorage
@@ -317,7 +322,19 @@ const translations = {
         cancel: "Cancel",
         delete: "Delete",
         use_phone_camera: "Use Phone Camera",
-        take_photo: "Take Photo"
+        take_photo: "Take Photo",
+        select_from_gallery: "Select from Gallery",
+        login: "Login",
+        logout: "Logout",
+        username: "Username",
+        password: "Password",
+        users: "Users",
+        add_user: "+ Add User",
+        role: "Role",
+        department: "Department",
+        invalid_credentials: "Invalid username or password",
+        user_added: "User added",
+        user_deleted: "User deleted"
     },
     vi: {
         all: "Tất cả",
@@ -399,7 +416,19 @@ const translations = {
         cancel: "Hủy",
         delete: "Xóa",
         use_phone_camera: "Dùng Camera điện thoại",
-        take_photo: "Chụp ảnh"
+        take_photo: "Chụp ảnh",
+        select_from_gallery: "Chọn từ thư viện",
+        login: "Đăng nhập",
+        logout: "Đăng xuất",
+        username: "Tên đăng nhập",
+        password: "Mật khẩu",
+        users: "Người dùng",
+        add_user: "+ Thêm người dùng",
+        role: "Vai trò",
+        department: "Bộ phận",
+        invalid_credentials: "Sai tên đăng nhập hoặc mật khẩu",
+        user_added: "Đã thêm người dùng",
+        user_deleted: "Đã xóa người dùng"
     }
 };
 
@@ -479,6 +508,7 @@ let selectedCategory = null;
 let capturedImages = [];
 let cameraStream = null;
 let facingMode = 'environment';
+let currentUser = null; // {id, username, role, department}
 
 // ==================== STORAGE FUNCTIONS ====================
 function loadData() {
@@ -491,6 +521,7 @@ function loadData() {
     if (savedSync) {
         syncState = JSON.parse(savedSync);
     }
+    syncState.isSyncing = false; // S2: never restore a locked sync state from storage
 
     cleanupOldPendingChanges();
 
@@ -505,6 +536,20 @@ function saveData() {
 function saveSyncState() {
     localStorage.setItem('productSnapSyncState', JSON.stringify(syncState));
     updatePendingBadge();
+    updateLastSyncDisplay();
+}
+
+function updateLastSyncDisplay() {
+    const el = document.getElementById('last-sync-time');
+    if (!el) return;
+    if (!syncState.lastSyncTimestamp) {
+        el.textContent = currentLang === 'vi' ? 'Chưa đồng bộ' : 'Never';
+        return;
+    }
+    const d = new Date(syncState.lastSyncTimestamp);
+    el.textContent = d.toLocaleString(currentLang === 'vi' ? 'vi-VN' : 'en-US', {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
 }
 
 // ==================== MIGRATION: localStorage images → IndexedDB ====================
@@ -594,6 +639,167 @@ function updatePendingBadge() {
     const pendingCountEl = document.getElementById('pending-changes-count');
     if (pendingCountEl) {
         pendingCountEl.textContent = count;
+    }
+}
+
+// ==================== AUTH ====================
+function isAdmin() {
+    return currentUser && currentUser.role === 'admin';
+}
+
+function loadAuthState() {
+    const saved = localStorage.getItem('productSnapUser');
+    if (saved) {
+        try { currentUser = JSON.parse(saved); } catch (e) { currentUser = null; }
+    }
+}
+
+function saveAuthState() {
+    if (currentUser) localStorage.setItem('productSnapUser', JSON.stringify(currentUser));
+    else localStorage.removeItem('productSnapUser');
+}
+
+function showLoginModal() {
+    const modal = document.getElementById('modal-login');
+    if (modal) modal.style.display = 'flex';
+    const usernameInput = document.getElementById('login-username');
+    if (usernameInput) usernameInput.focus();
+}
+
+function hideLoginModal() {
+    const modal = document.getElementById('modal-login');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+
+    if (!username || !password) {
+        showToast(currentLang === 'vi' ? 'Nhập đầy đủ tên đăng nhập và mật khẩu' : 'Please enter username and password');
+        return;
+    }
+
+    if (!API.url) {
+        showToast(currentLang === 'vi' ? 'Chưa cấu hình API URL (vào Settings)' : 'API URL not configured (go to Settings)');
+        // Allow offline mode for now — store username only
+        currentUser = { id: 'offline', username, role: 'admin', department: '' };
+        saveAuthState();
+        hideLoginModal();
+        applyRoleUI();
+        showToast(currentLang === 'vi' ? `Xin chào, ${username}! (chế độ offline)` : `Welcome, ${username}! (offline mode)`);
+        return;
+    }
+
+    const btn = document.getElementById('login-submit');
+    btn.disabled = true;
+    btn.textContent = currentLang === 'vi' ? 'Đang đăng nhập...' : 'Logging in...';
+
+    try {
+        const result = await API.login(username, password);
+        if (result && result.success) {
+            currentUser = result.user;
+            saveAuthState();
+            document.getElementById('login-password').value = '';
+            hideLoginModal();
+            applyRoleUI();
+            showToast(currentLang === 'vi' ? `Xin chào, ${currentUser.username}!` : `Welcome, ${currentUser.username}!`);
+        } else {
+            showToast(t('invalid_credentials'));
+        }
+    } catch (e) {
+        console.error('Login error:', e);
+        showToast(t('sync_failed'));
+    } finally {
+        btn.disabled = false;
+        btn.textContent = t('login');
+    }
+}
+
+function logoutUser() {
+    currentUser = null;
+    saveAuthState();
+    applyRoleUI();
+    showLoginModal();
+}
+
+function applyRoleUI() {
+    const admin = isAdmin();
+
+    // Add category button
+    const addCatBtn = document.getElementById('add-category');
+    if (addCatBtn) addCatBtn.style.display = admin ? '' : 'none';
+
+    // Users section
+    const usersSection = document.getElementById('section-users');
+    if (usersSection) usersSection.style.display = admin ? '' : 'none';
+
+    // Current user display
+    const userDisplay = document.getElementById('current-user-display');
+    if (userDisplay) userDisplay.textContent = currentUser ? `${currentUser.username} (${currentUser.role})` : '-';
+
+    // Re-render category settings to apply admin-gated buttons
+    renderCategoriesSettings();
+    if (admin) renderUsersSettings();
+}
+
+async function renderUsersSettings() {
+    const container = document.getElementById('users-settings');
+    if (!container || !API.url) return;
+
+    try {
+        const result = await API.getUsers();
+        if (!result || !result.success) return;
+        container.innerHTML = result.users.map(u => `
+            <div class="settings-item" style="flex-direction: column; align-items: stretch; padding: 10px; background: var(--surface); border-radius: 8px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>${u.username}</strong>
+                        <span class="field-tag" style="margin-left: 8px; background: ${u.role === 'admin' ? 'var(--primary)' : 'var(--surface-2)'}; color: ${u.role === 'admin' ? 'white' : 'inherit'}">${u.role}</span>
+                        ${u.department ? `<span class="field-tag" style="margin-left: 4px;">${u.department}</span>` : ''}
+                    </div>
+                    ${u.id !== currentUser?.id ? `<button class="btn-icon danger" onclick="deleteUser('${u.id}')">🗑️</button>` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('Failed to load users:', e);
+    }
+}
+
+async function deleteUser(userId) {
+    if (!confirm(currentLang === 'vi' ? 'Xóa người dùng này?' : 'Delete this user?')) return;
+    const result = await API.deleteUser(userId);
+    if (result && result.success) {
+        showToast(t('user_deleted'));
+        renderUsersSettings();
+    }
+}
+
+async function addNewUser() {
+    const username = prompt(currentLang === 'vi' ? 'Tên đăng nhập:' : 'Username:');
+    if (!username) return;
+    const password = prompt(currentLang === 'vi' ? 'Mật khẩu:' : 'Password:');
+    if (!password) return;
+    const role = prompt(currentLang === 'vi' ? 'Vai trò (admin/user):' : 'Role (admin/user):', 'user');
+    if (!role) return;
+    const department = prompt(currentLang === 'vi' ? 'Bộ phận (để trống nếu không có):' : 'Department (leave empty if none):', '') || '';
+
+    const user = {
+        id: 'user_' + Date.now(),
+        username,
+        password,
+        role: role.toLowerCase() === 'admin' ? 'admin' : 'user',
+        department,
+        createdAt: new Date().toISOString()
+    };
+
+    const result = await API.addUser(user);
+    if (result && result.success) {
+        showToast(t('user_added'));
+        renderUsersSettings();
+    } else {
+        showToast(t('sync_failed'));
     }
 }
 
@@ -889,18 +1095,27 @@ function showNameSuggestions(value) {
         );
 
         if (matches.length > 0) {
-            dropdown.innerHTML = matches.slice(0, 10).map(item => `
-                <div class="autocomplete-item" onclick="selectProductName('${item.name.replace(/'/g, "\\'")}')">
-                    ${item.name}
-                    <span class="category-tag">${item.category || ''}</span>
-                </div>
-            `).join('');
+            // A5: use DOM construction to avoid XSS via product names in innerHTML
+            dropdown.innerHTML = '';
+            matches.slice(0, 10).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.textContent = item.name;
+                if (item.category) {
+                    const tag = document.createElement('span');
+                    tag.className = 'category-tag';
+                    tag.textContent = item.category;
+                    div.appendChild(tag);
+                }
+                div.addEventListener('click', () => selectProductName(item.name));
+                dropdown.appendChild(div);
+            });
             dropdown.style.display = 'block';
             addBtn.style.display = 'none';
         } else {
             dropdown.style.display = 'none';
             addBtn.style.display = 'block';
-            addBtn.innerHTML = `+ ${currentLang === 'vi' ? 'Tạo mới' : 'Create'}: "${value}"`;
+            addBtn.textContent = `+ ${currentLang === 'vi' ? 'Tạo mới' : 'Create'}: "${value}"`;
         }
     }, 200);
 }
@@ -991,6 +1206,7 @@ async function saveProduct() {
             category: selectedCategory,
             images: [], // will be loaded from ImageStore on demand
             data: formData,
+            department: currentUser?.department || '',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -1200,7 +1416,8 @@ async function showProductDetail(productId) {
                 </div>
                 <div id="detail-content"></div>
                 <div style="margin-top: 16px; display: flex; gap: 10px;">
-                    <button class="btn btn-secondary" style="flex: 1; border-color: var(--danger); color: var(--danger);" id="detail-delete-btn">${t('delete')}</button>
+                    <button class="btn btn-secondary" id="detail-delete-btn"
+                        style="flex: 1; border-color: var(--danger); color: var(--danger); ${!isAdmin() ? 'display:none;' : ''}">${t('delete')}</button>
                     <button class="btn btn-primary" style="flex: 1;" onclick="closeModal('modal-product-detail')">${currentLang === 'vi' ? 'Đóng' : 'Close'}</button>
                 </div>
             </div>
@@ -1217,6 +1434,10 @@ async function showProductDetail(productId) {
 // ==================== SETTINGS ====================
 function renderCategoriesSettings() {
     const container = document.getElementById('categories-settings');
+    const adminButtons = isAdmin()
+        ? (catId) => `<button class="btn-icon" onclick="openEditCategory('${catId}')" title="Edit">✏️</button>
+                      <button class="btn-icon danger" onclick="confirmDeleteCategory('${catId}')" title="Delete">🗑️</button>`
+        : () => '';
     container.innerHTML = appData.categories.map(cat => `
         <div class="category-item">
             <div class="category-item-header">
@@ -1225,8 +1446,7 @@ function renderCategoriesSettings() {
                     <span>${cat.name[currentLang] || cat.name.en}</span>
                 </span>
                 <div class="category-item-actions">
-                    <button class="btn-icon" onclick="openEditCategory('${cat.id}')" title="Edit">✏️</button>
-                    <button class="btn-icon danger" onclick="confirmDeleteCategory('${cat.id}')" title="Delete">🗑️</button>
+                    ${adminButtons(cat.id)}
                 </div>
             </div>
             <div class="category-item-fields">
@@ -1377,6 +1597,7 @@ function switchScreen(screenId) {
 
 // ==================== EVENT LISTENERS ====================
 document.addEventListener('DOMContentLoaded', () => {
+    loadAuthState();
     loadData();
 
     // Language switch
@@ -1659,7 +1880,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateLocalDataCount();
     updatePendingBadge();
+    updateLastSyncDisplay();
     setupAutoSync();
+
+    // Select from Gallery button (for iOS — Share Target not supported on iOS)
+    const galleryBtn = document.getElementById('select-gallery-btn');
+    if (galleryBtn) {
+        galleryBtn.addEventListener('click', () => {
+            document.getElementById('gallery-input').click();
+        });
+    }
+
+    // Login modal
+    const loginSubmitBtn = document.getElementById('login-submit');
+    if (loginSubmitBtn) {
+        loginSubmitBtn.addEventListener('click', submitLogin);
+    }
+    const loginPasswordInput = document.getElementById('login-password');
+    if (loginPasswordInput) {
+        loginPasswordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitLogin();
+        });
+    }
+
+    // Logout button
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.addEventListener('click', logoutUser);
+
+    // Add user button
+    const addUserBtn = document.getElementById('add-user');
+    if (addUserBtn) addUserBtn.addEventListener('click', addNewUser);
+
+    // Show login or apply role UI
+    if (!currentUser) {
+        showLoginModal();
+    } else {
+        applyRoleUI();
+    }
 });
 
 // ==================== SYNC FUNCTIONS ====================
@@ -1684,48 +1941,51 @@ async function syncPendingToCloud() {
     let synced = 0;
     let failed = 0;
 
-    const pendingCopy = [...syncState.pendingChanges];
+    try {
+        const pendingCopy = [...syncState.pendingChanges];
 
-    for (const change of pendingCopy) {
-        try {
-            let result = null;
+        for (const change of pendingCopy) {
+            try {
+                let result = null;
 
-            switch (change.type) {
-                case 'CREATE_PRODUCT': {
-                    // Load real images from IndexedDB for upload
-                    const images = await ImageStore.get(change.data.id);
-                    result = await API.saveProduct({ ...change.data, images });
-                    break;
+                switch (change.type) {
+                    case 'CREATE_PRODUCT': {
+                        // Load real images from IndexedDB for upload
+                        const images = await ImageStore.get(change.data.id);
+                        result = await API.saveProduct({ ...change.data, images });
+                        break;
+                    }
+                    case 'DELETE_PRODUCT':
+                        result = await API.deleteProduct(change.data.id);
+                        break;
+                    case 'CREATE_CATEGORY':
+                    case 'UPDATE_CATEGORY':
+                        result = await API.saveCategory(change.data);
+                        break;
+                    case 'DELETE_CATEGORY':
+                        result = await API.deleteCategory(change.data.id);
+                        break;
                 }
-                case 'DELETE_PRODUCT':
-                    result = await API.deleteProduct(change.data.id);
-                    break;
-                case 'CREATE_CATEGORY':
-                case 'UPDATE_CATEGORY':
-                    result = await API.saveCategory(change.data);
-                    break;
-                case 'DELETE_CATEGORY':
-                    result = await API.deleteCategory(change.data.id);
-                    break;
-            }
 
-            if (result && result.success) {
-                removeFromPending(change.id);
-                synced++;
-                console.log(`Synced: ${change.type} - ${change.data.id || change.data.name}`);
-            } else {
+                if (result && result.success) {
+                    removeFromPending(change.id);
+                    synced++;
+                    console.log(`Synced: ${change.type} - ${change.data.id || change.data.name}`);
+                } else {
+                    failed++;
+                    console.log(`Failed: ${change.type}`, result);
+                }
+            } catch (e) {
                 failed++;
-                console.log(`Failed: ${change.type}`, result);
+                console.error(`Error syncing ${change.type}:`, e);
             }
-        } catch (e) {
-            failed++;
-            console.error(`Error syncing ${change.type}:`, e);
         }
+    } finally {
+        // A6: always reset isSyncing even if unexpected exception occurs
+        syncState.isSyncing = false;
+        syncState.lastSyncTimestamp = Date.now();
+        saveSyncState();
     }
-
-    syncState.isSyncing = false;
-    syncState.lastSyncTimestamp = Date.now();
-    saveSyncState();
 
     return { synced, failed };
 }
@@ -1751,6 +2011,7 @@ async function syncFromCloud() {
     renderCategoriesSettings();
     renderProducts();
     updateLocalDataCount();
+    loadProductNames(); // S3: refresh autocomplete cache after cloud sync
 }
 
 function mergeCategories(cloudCategories) {

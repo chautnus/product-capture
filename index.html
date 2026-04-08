@@ -58,12 +58,15 @@
                 </button>
             </div>
 
-            <!-- Use Phone Camera (native) -->
+            <!-- Camera + Gallery buttons -->
             <div style="display: flex; gap: 10px; margin: 10px 0;">
                 <label class="btn btn-secondary" style="flex: 1; text-align: center; cursor: pointer;">
                     📷 <span data-i18n="use_phone_camera">Use Phone Camera</span>
                     <input type="file" id="native-camera-input" accept="image/*" capture="environment" style="display: none;">
                 </label>
+                <button class="btn btn-secondary" id="select-gallery-btn" style="flex: 1;">
+                    🖼️ <span data-i18n="select_from_gallery">Select from Gallery</span>
+                </button>
             </div>
 
             <div class="captured-images" id="captured-images">
@@ -108,6 +111,14 @@
 
         <!-- Settings Screen -->
         <div class="screen" id="screen-settings">
+            <!-- Current User + Logout -->
+            <div class="settings-section">
+                <div class="settings-item">
+                    <span id="current-user-display" style="font-weight: 500;">-</span>
+                    <button class="btn btn-secondary" id="logout-btn" style="border-color: var(--danger); color: var(--danger);" data-i18n="logout">Logout</button>
+                </div>
+            </div>
+
             <div class="settings-section">
                 <div class="settings-header" data-i18n="google_sheets">Google Sheets</div>
                 <div class="settings-item" style="flex-direction: column; align-items: stretch; gap: 12px;">
@@ -143,6 +154,10 @@
                         🔽 Sync from Cloud
                     </button>
                 </div>
+                <div class="settings-item" style="font-size: 0.78rem; color: var(--text-secondary); flex-direction: column; align-items: flex-start; gap: 4px;">
+                    <span>📱 Share Target (nhận ảnh từ app khác) chỉ hoạt động trên Android Chrome + đã cài PWA.</span>
+                    <span>iOS: dùng nút <strong>Select from Gallery</strong> ở tab Capture.</span>
+                </div>
             </div>
 
             <div class="settings-section">
@@ -152,6 +167,15 @@
                 </div>
                 <div class="settings-item">
                     <button class="btn btn-secondary" id="add-category" data-i18n="add_category">+ Add Category</button>
+                </div>
+            </div>
+
+            <!-- Users section (admin only) -->
+            <div class="settings-section" id="section-users" style="display:none;">
+                <div class="settings-header" data-i18n="users">Users</div>
+                <div id="users-settings"></div>
+                <div class="settings-item">
+                    <button class="btn btn-secondary" id="add-user" data-i18n="add_user">+ Add User</button>
                 </div>
             </div>
 
@@ -314,6 +338,32 @@
 
     <!-- Hidden file input for gallery -->
     <input type="file" id="gallery-input" accept="image/*" multiple style="display:none;">
+
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="modal-login" style="display:none; z-index: 9999;">
+        <div class="modal" style="max-width: 340px;">
+            <div class="modal-header" style="justify-content: center; border-bottom: none; padding-bottom: 0;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;color:var(--primary)">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+            </div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="margin: 8px 0 4px;">ProductSnap</h2>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Đăng nhập để tiếp tục / Login to continue</p>
+            </div>
+            <div class="form-group">
+                <input type="text" class="form-input" id="login-username" placeholder="Username" autocomplete="username" autocapitalize="none">
+            </div>
+            <div class="form-group" style="margin-top: 10px;">
+                <input type="password" class="form-input" id="login-password" placeholder="Password" autocomplete="current-password">
+            </div>
+            <button class="btn btn-primary" id="login-submit" style="width: 100%; margin-top: 16px;" data-i18n="login">Login</button>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 0.75rem; margin-top: 16px;">
+                Mặc định: admin / admin123
+            </p>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
