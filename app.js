@@ -509,6 +509,7 @@ let capturedImages = [];
 let cameraStream = null;
 let facingMode = 'environment';
 let currentUser = null; // {id, username, role, department}
+let productSearchTerm = '';
 
 // ==================== STORAGE FUNCTIONS ====================
 function loadData() {
@@ -720,12 +721,26 @@ async function submitLogin() {
             hideLoginModal();
             applyRoleUI();
             showToast(currentLang === 'vi' ? `Xin chào, ${currentUser.username}!` : `Welcome, ${currentUser.username}!`);
+        } else if (!result) {
+            showToast(currentLang === 'vi'
+                ? 'Không thể kết nối server. Kiểm tra API URL.'
+                : 'Cannot reach server. Check API URL.');
+        } else if (result.error && result.error.includes('Users sheet')) {
+            showToast(currentLang === 'vi'
+                ? '⚠️ Chưa setup. Chạy initialSetup() trong Apps Script.'
+                : '⚠️ Not set up. Run initialSetup() in Apps Script.');
+        } else if (result.error && result.error.includes('Unknown action')) {
+            showToast(currentLang === 'vi'
+                ? '⚠️ Apps Script chưa cập nhật. Deploy lại.'
+                : '⚠️ Apps Script outdated. Redeploy.');
         } else {
             showToast(t('invalid_credentials'));
         }
     } catch (e) {
         console.error('Login error:', e);
-        showToast(t('sync_failed'));
+        showToast(currentLang === 'vi'
+            ? 'Không thể kết nối server. Kiểm tra API URL.'
+            : 'Cannot reach server. Check API URL.');
     } finally {
         btn.disabled = false;
         btn.textContent = t('login');
@@ -972,11 +987,7 @@ function renderCapturedImages() {
             <img src="${img}" alt="Captured ${idx + 1}">
             <button class="remove-btn" onclick="removeImage(${idx})">×</button>
         </div>
-    `).join('') + `<button class="add-image-btn" id="add-from-gallery">+</button>`;
-
-    document.getElementById('add-from-gallery').onclick = () => {
-        document.getElementById('gallery-input').click();
-    };
+    `).join('');
 }
 
 function removeImage(idx) {
@@ -1356,6 +1367,14 @@ async function renderProducts(filter = 'all') {
         products = products.filter(p => p.category === filter);
     }
 
+    // Search by product name
+    if (productSearchTerm) {
+        const term = productSearchTerm.toLowerCase();
+        products = products.filter(p =>
+            (p.data?.name || '').toLowerCase().includes(term)
+        );
+    }
+
     if (products.length === 0) {
         container.innerHTML = '';
         emptyState.style.display = 'block';
@@ -1683,6 +1702,9 @@ function switchScreen(screenId) {
     document.querySelector(`.nav-item[data-screen="${screenId}"]`).classList.add('active');
 
     if (screenId === 'products') {
+        productSearchTerm = '';
+        const searchInput = document.getElementById('product-search-input');
+        if (searchInput) searchInput.value = '';
         renderProducts();
     } else if (screenId === 'settings') {
         renderCategoriesSettings();
@@ -1916,10 +1938,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const result = await syncPendingToCloud();
-            if (result.synced > 0) {
+            if (result.synced > 0 && result.failed === 0) {
                 showToast(currentLang === 'vi'
                     ? `Đã đồng bộ ${result.synced} thay đổi!`
                     : `Synced ${result.synced} changes!`);
+            } else if (result.synced > 0 && result.failed > 0) {
+                showToast(currentLang === 'vi'
+                    ? `Đồng bộ ${result.synced}, thất bại ${result.failed}`
+                    : `Synced ${result.synced}, failed ${result.failed}`);
+            } else if (result.failed > 0) {
+                showToast(currentLang === 'vi'
+                    ? `${result.failed} thay đổi thất bại. Kiểm tra kết nối.`
+                    : `${result.failed} changes failed. Check connection.`);
             } else if (syncState.pendingChanges.length === 0) {
                 showToast(currentLang === 'vi' ? 'Không có thay đổi cần đồng bộ' : 'No pending changes');
             }
@@ -1986,6 +2016,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Product name search
+    document.getElementById('product-search-input')?.addEventListener('input', (e) => {
+        productSearchTerm = e.target.value;
+        renderProducts();
+    });
+
     // Login modal
     const loginSubmitBtn = document.getElementById('login-submit');
     if (loginSubmitBtn) {
@@ -2038,6 +2074,16 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoginModal();
     } else {
         applyRoleUI();
+    }
+
+    // PWA installed status
+    const pwaStatusEl = document.getElementById('pwa-installed-status');
+    if (pwaStatusEl) {
+        const isInstalled = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+        pwaStatusEl.textContent = isInstalled
+            ? '✅ PWA đã cài đặt (standalone mode)'
+            : '⚠️ PWA chưa cài đặt — mở Chrome → Add to Home Screen';
+        pwaStatusEl.style.color = isInstalled ? 'var(--success)' : 'var(--warning)';
     }
 });
 

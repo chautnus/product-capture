@@ -70,7 +70,7 @@
             </div>
 
             <div class="captured-images" id="captured-images">
-                <button class="add-image-btn" id="add-from-gallery">+</button>
+                <!-- Images rendered by JS -->
             </div>
 
             <p class="section-title" data-i18n="select_category">Select Category</p>
@@ -92,6 +92,10 @@
             <div class="data-header" style="padding: 16px 0;">
                 <h2 style="font-size: 1.2rem; margin-bottom: 8px;" data-i18n="all_data">📁 All Data</h2>
                 <p style="color: var(--text-secondary); font-size: 0.9rem;" id="data-summary"></p>
+            </div>
+            <div style="padding: 0 0 12px; position: relative;">
+                <input type="search" class="form-input" id="product-search-input"
+                       placeholder="🔍 Tìm tên sản phẩm..." style="padding-left: 16px;">
             </div>
 
             <div id="products-list">
@@ -157,6 +161,12 @@
                 <div class="settings-item" style="font-size: 0.78rem; color: var(--text-secondary); flex-direction: column; align-items: flex-start; gap: 4px;">
                     <span>📱 Share Target (nhận ảnh từ app khác) chỉ hoạt động trên Android Chrome + đã cài PWA.</span>
                     <span>iOS: dùng nút <strong>Select from Gallery</strong> ở tab Capture.</span>
+                </div>
+                <div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 6px;">
+                    <span style="font-size: 0.85rem; font-weight: 600;">PWA Status</span>
+                    <span id="pwa-installed-status" style="font-size: 0.8rem; color: var(--text-secondary);">Checking...</span>
+                    <span style="font-size: 0.78rem; color: var(--text-secondary);">SW: productsnap-v6</span>
+                    <span style="font-size: 0.78rem; color: var(--text-secondary);">💡 Nếu Share Target không hoạt động: gỡ app → mở Chrome → cài lại qua "Add to Home Screen"</span>
                 </div>
             </div>
 
