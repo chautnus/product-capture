@@ -235,7 +235,7 @@ const API = {
 };
 
 // Load API URL from localStorage
-API.url = localStorage.getItem('productSnapAPIUrl') || '';
+API.url = localStorage.getItem('productSnapAPIUrl') || DEFAULT_API_URL;
 
 // Product names cache for autocomplete
 let productNamesCache = [];
@@ -511,7 +511,16 @@ let facingMode = 'environment';
 let currentUser = null; // {id, username, role, department}
 let productSearchTerm = '';
 
-const APP_VERSION = '4.4';
+const APP_VERSION = '4.5';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxVS0T8Sbo9PkYhdqgd33RKeP5pTY7Bf6zepkibKQLISSb0IN6t9F2ooQ8Wh4pXgvRs/exec';
+
+// Convert Google Drive uc?id=XXX (and related) format to reliable thumbnail URL
+function toThumbnailUrl(url, size = 200) {
+    if (!url || typeof url !== 'string') return url;
+    const m = url.match(/drive\.google\.com\/(?:uc\?(?:export=view&)?id=|thumbnail\?id=|file\/d\/)([a-zA-Z0-9_-]+)/);
+    if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w${size}`;
+    return url; // base64 data: URIs and other URLs pass through unchanged
+}
 
 // ==================== STORAGE FUNCTIONS ====================
 function loadData() {
@@ -1454,17 +1463,25 @@ async function renderProducts(filter = 'all') {
 
     container.innerHTML = html;
 
-    // Lazy-load thumbnails from IndexedDB (non-blocking)
+    // Lazy-load thumbnails: IndexedDB (local base64) → product.images (cloud URLs) → placeholder
     for (const product of products) {
-        ImageStore.get(product.id).then(images => {
+        ImageStore.get(product.id).then(localImages => {
             const thumbEl = document.getElementById(`thumb-${product.id}`);
             const countEl = document.getElementById(`img-count-${product.id}`);
-            if (thumbEl && images && images[0]) {
-                thumbEl.src = images[0];
+
+            let src = null;
+            let count = 0;
+
+            if (localImages && localImages.length > 0) {
+                src = localImages[0];
+                count = localImages.length;
+            } else if (product.images && product.images.length > 0) {
+                src = toThumbnailUrl(product.images[0]);
+                count = product.images.length;
             }
-            if (countEl) {
-                countEl.textContent = `📷 ${images ? images.length : 0}`;
-            }
+
+            if (thumbEl && src) thumbEl.src = src;
+            if (countEl) countEl.textContent = `📷 ${count}`;
         }).catch(() => {});
     }
 }
@@ -1476,12 +1493,15 @@ async function showProductDetail(productId) {
     const category = appData.categories.find(c => c.id === product.category);
     const fields = category?.fields || [];
 
-    // Load images from IndexedDB
+    // Load images from IndexedDB (local base64), fall back to cloud URLs in product.images
     let images = [];
     try {
         images = await ImageStore.get(productId);
     } catch (e) {
         images = [];
+    }
+    if ((!images || images.length === 0) && product.images && product.images.length > 0) {
+        images = product.images.map(u => toThumbnailUrl(u, 600));
     }
 
     let detailHtml = `
@@ -1888,12 +1908,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCategories();
     renderCapturedImages();
 
-    // Load saved API URL
-    const savedApiUrl = localStorage.getItem('productSnapAPIUrl');
-    if (savedApiUrl) {
-        document.getElementById('api-url-input').value = savedApiUrl;
-        updateConnectionStatus();
-    }
+    // Load saved API URL (or fall back to hardcoded default)
+    const savedApiUrl = localStorage.getItem('productSnapAPIUrl') || DEFAULT_API_URL;
+    document.getElementById('api-url-input').value = savedApiUrl;
+    updateConnectionStatus();
 
     // Test connection button
     document.getElementById('test-connection').addEventListener('click', async () => {
@@ -2251,15 +2269,21 @@ function mergeProducts(cloudProducts) {
         const localProd = localMap.get(cloudProd.id);
 
         if (!localProd) {
-            // Cloud product has image URLs (not base64), store as-is with empty local images
-            appData.products.push({ ...cloudProd, images: [] });
+            // Keep cloud URLs in images array so thumbnails can render
+            appData.products.push({ ...cloudProd });
         } else {
             const cloudTime = new Date(cloudProd.updatedAt || cloudProd.createdAt || 0).getTime();
             const localTime = new Date(localProd.updatedAt || localProd.createdAt || 0).getTime();
             if (cloudTime > localTime) {
                 const index = appData.products.findIndex(p => p.id === cloudProd.id);
                 if (index > -1) {
-                    appData.products[index] = { ...cloudProd, images: [] };
+                    // Preserve local IndexedDB base64 if present; otherwise use cloud URLs
+                    const hadLocalImages = localProd.images && localProd.images.length > 0
+                        && typeof localProd.images[0] === 'string' && localProd.images[0].startsWith('data:');
+                    appData.products[index] = {
+                        ...cloudProd,
+                        images: hadLocalImages ? localProd.images : cloudProd.images
+                    };
                 }
             }
         }
