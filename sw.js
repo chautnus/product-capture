@@ -3,12 +3,13 @@
  * Handles: Share Target API, Offline caching, Background sync
  */
 
-const CACHE_NAME = 'productsnap-v8';
+const CACHE_NAME = 'productsnap-v9';
+const APP_VERSION = '4.6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './app.css',
-  './app.js',
+  `./app.css?v=${APP_VERSION}`,
+  `./app.js?v=${APP_VERSION}`,
   './manifest.json'
 ];
 
@@ -28,20 +29,25 @@ self.addEventListener('install', (event) => {
 
 // ==================== ACTIVATE ====================
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating...');
-  
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
+  console.log('[SW] Activating v' + APP_VERSION + '...');
+
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    await Promise.all(
+      cacheNames
+        .filter((name) => name !== CACHE_NAME)
+        .map((name) => {
+          console.log('[SW] Deleting old cache:', name);
+          return caches.delete(name);
         })
-      );
-    }).then(() => self.clients.claim())
-  );
+    );
+    await self.clients.claim();
+    // Force-reload all open windows so they pick up the new assets
+    const windowClients = await self.clients.matchAll({ type: 'window' });
+    windowClients.forEach((client) => {
+      try { client.navigate(client.url); } catch (e) { /* cross-origin safety */ }
+    });
+  })());
 });
 
 // ==================== FETCH ====================

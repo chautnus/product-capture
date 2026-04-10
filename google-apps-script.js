@@ -486,7 +486,7 @@ function getCategories() {
     }
   }
   
-  return { success: true, categories: categories };
+  return { success: true, categories: categories, apiVersion: '4.6', deployedAt: '2026-04-08' };
 }
 
 // ==================== DATA (PRODUCTS) ====================
@@ -535,7 +535,7 @@ function getData(category) {
   
   products.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   
-  return { success: true, products: products };
+  return { success: true, products: products, apiVersion: '4.6', deployedAt: '2026-04-08' };
 }
 
 function saveProduct(product) {

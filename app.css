@@ -673,13 +673,13 @@ body {
     background: rgba(15, 15, 26, 0.95);
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     padding: 0;
     padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
 
 .nav-item {
-    flex: 1 1 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -690,11 +690,19 @@ body {
     color: var(--text-secondary);
     font-size: 0.75rem;
     cursor: pointer;
-    padding: 8px 4px;
-    min-height: 60px;
-    transition: all 0.2s;
+    padding: 12px 0;
+    min-height: 64px;
+    width: 100%;
+    height: 100%;
+    transition: background 0.15s;
     touch-action: manipulation;
-    -webkit-tap-highlight-color: rgba(0, 217, 255, 0.2);
+    -webkit-tap-highlight-color: rgba(0, 217, 255, 0.3);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.nav-item:active {
+    background: rgba(0, 217, 255, 0.15);
 }
 
 .nav-item svg {
