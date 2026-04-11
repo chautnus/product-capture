@@ -3,7 +3,7 @@
  * Handles: Share Target API, Offline caching, Background sync
  */
 
-const CACHE_NAME = 'productsnap-v9';
+const CACHE_NAME = 'productsnap-v10';
 const APP_VERSION = '4.6';
 const ASSETS_TO_CACHE = [
   './',
@@ -16,14 +16,14 @@ const ASSETS_TO_CACHE = [
 // ==================== INSTALL ====================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  
+
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('[SW] Caching assets');
         return cache.addAll(ASSETS_TO_CACHE);
       })
-      .then(() => self.skipWaiting())
+    // NO self.skipWaiting() — page controls activation via postMessage
   );
 });
 
@@ -42,11 +42,6 @@ self.addEventListener('activate', (event) => {
         })
     );
     await self.clients.claim();
-    // Force-reload all open windows so they pick up the new assets
-    const windowClients = await self.clients.matchAll({ type: 'window' });
-    windowClients.forEach((client) => {
-      try { client.navigate(client.url); } catch (e) { /* cross-origin safety */ }
-    });
   })());
 });
 

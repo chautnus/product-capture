@@ -2,21 +2,24 @@
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', async () => {
         try {
-            // Bug A fix: use relative path for GitHub Pages subdirectory
             const registration = await navigator.serviceWorker.register('./sw.js');
             console.log('SW registered:', registration.scope);
 
-            // Check for updates
+            // When a new SW is found, tell it to activate immediately
             registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        if (confirm('Phiên bản mới có sẵn. Tải lại?')) {
-                            newWorker.postMessage({ type: 'SKIP_WAITING' });
-                            window.location.reload();
-                        }
+                        console.log('[SW] New version installed, activating...');
+                        newWorker.postMessage({ type: 'SKIP_WAITING' });
                     }
                 });
+            });
+
+            // Reload AFTER new SW takes control (safe, non-blocking)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('[SW] Controller changed, reloading...');
+                window.location.reload();
             });
         } catch (error) {
             console.log('SW registration failed:', error);
