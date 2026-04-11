@@ -3,14 +3,29 @@
  * Handles: Share Target API, Offline caching, Background sync
  */
 
-const CACHE_NAME = 'productsnap-v10';
-const APP_VERSION = '4.6';
+importScripts('./js/core/sw-idb.js');
+
+const CACHE_NAME = 'productsnap-v12';
+const APP_VERSION = '4.7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   `./app.css?v=${APP_VERSION}`,
-  `./app.js?v=${APP_VERSION}`,
-  './manifest.json'
+  './manifest.json',
+  `./js/core/sw-init.js?v=${APP_VERSION}`,
+  `./js/core/sw-idb.js?v=${APP_VERSION}`,
+  `./js/config.js?v=${APP_VERSION}`,
+  `./js/i18n.js?v=${APP_VERSION}`,
+  `./js/data.js?v=${APP_VERSION}`,
+  `./js/api.js?v=${APP_VERSION}`,
+  `./js/auth.js?v=${APP_VERSION}`,
+  `./js/camera.js?v=${APP_VERSION}`,
+  `./js/form.js?v=${APP_VERSION}`,
+  `./js/products.js?v=${APP_VERSION}`,
+  `./js/detail.js?v=${APP_VERSION}`,
+  `./js/settings.js?v=${APP_VERSION}`,
+  `./js/sync.js?v=${APP_VERSION}`,
+  `./js/app.js?v=${APP_VERSION}`
 ];
 
 // ==================== INSTALL ====================
@@ -23,7 +38,7 @@ self.addEventListener('install', (event) => {
         console.log('[SW] Caching assets');
         return cache.addAll(ASSETS_TO_CACHE);
       })
-    // NO self.skipWaiting() — page controls activation via postMessage
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -156,89 +171,6 @@ function fileToBase64(file) {
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
-  });
-}
-
-// Store shared data in IndexedDB
-async function storeSharedData(data) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ProductSnapShare', 1);
-    
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains('shared')) {
-        db.createObjectStore('shared', { keyPath: 'timestamp' });
-      }
-    };
-    
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      const transaction = db.transaction(['shared'], 'readwrite');
-      const store = transaction.objectStore('shared');
-      store.put(data);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    };
-    
-    request.onerror = () => reject(request.error);
-  });
-}
-
-// Get stored shared data
-async function getSharedData() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ProductSnapShare', 1);
-    
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      
-      if (!db.objectStoreNames.contains('shared')) {
-        resolve(null);
-        return;
-      }
-      
-      const transaction = db.transaction(['shared'], 'readonly');
-      const store = transaction.objectStore('shared');
-      const getAllRequest = store.getAll();
-      
-      getAllRequest.onsuccess = () => {
-        const items = getAllRequest.result;
-        // Get most recent item
-        if (items.length > 0) {
-          resolve(items[items.length - 1]);
-        } else {
-          resolve(null);
-        }
-      };
-      
-      getAllRequest.onerror = () => reject(getAllRequest.error);
-    };
-    
-    request.onerror = () => reject(request.error);
-  });
-}
-
-// Clear shared data
-async function clearSharedData() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ProductSnapShare', 1);
-    
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      
-      if (!db.objectStoreNames.contains('shared')) {
-        resolve();
-        return;
-      }
-      
-      const transaction = db.transaction(['shared'], 'readwrite');
-      const store = transaction.objectStore('shared');
-      store.clear();
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    };
-    
-    request.onerror = () => reject(request.error);
   });
 }
 

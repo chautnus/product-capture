@@ -1,0 +1,83 @@
+let capturedImages = [];
+let cameraStream = null;
+let facingMode = 'environment';
+
+// ==================== CAMERA ====================
+async function startCamera() {
+    try {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+        }
+
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: facingMode,
+                width: { ideal: 4096, min: 1920 },
+                height: { ideal: 2160, min: 1080 },
+                aspectRatio: { ideal: 4/3 }
+            },
+            audio: false
+        });
+
+        const preview = document.getElementById('camera-preview');
+        preview.srcObject = cameraStream;
+        document.getElementById('camera-placeholder').style.display = 'none';
+        document.getElementById('stop-camera').style.display = 'flex';
+        document.querySelector('.camera-container')?.classList.add('camera-active');
+    } catch (err) {
+        console.error('Camera error:', err);
+        alert('Could not access camera. Please check permissions.');
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    const preview = document.getElementById('camera-preview');
+    preview.srcObject = null;
+    document.getElementById('camera-placeholder').style.display = 'flex';
+    document.getElementById('stop-camera').style.display = 'none';
+    document.querySelector('.camera-container')?.classList.remove('camera-active');
+}
+
+function captureImage() {
+    if (!cameraStream) {
+        alert(currentLang === 'vi' ? 'Vui lòng bật camera trước' : 'Please start camera first');
+        return;
+    }
+
+    const preview = document.getElementById('camera-preview');
+    const canvas = document.getElementById('capture-canvas');
+
+    canvas.width = preview.videoWidth;
+    canvas.height = preview.videoHeight;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(preview, 0, 0);
+
+    const imageData = canvas.toDataURL('image/jpeg', 0.95);
+    capturedImages.push(imageData);
+    renderCapturedImages();
+}
+
+function switchCamera() {
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    startCamera();
+}
+
+function renderCapturedImages() {
+    const container = document.getElementById('captured-images');
+    container.innerHTML = capturedImages.map((img, idx) => `
+        <div class="captured-img">
+            <img src="${img}" alt="Captured ${idx + 1}">
+            <button class="remove-btn" onclick="removeImage(${idx})">×</button>
+        </div>
+    `).join('');
+}
+
+function removeImage(idx) {
+    capturedImages.splice(idx, 1);
+    renderCapturedImages();
+}
