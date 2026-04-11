@@ -1,12 +1,12 @@
 // ==================== CONFIG ====================
-export const APP_VERSION = '4.6';
-export const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxVS0T8Sbo9PkYhdqgd33RKeP5pTY7Bf6zepkibKQLISSb0IN6t9F2ooQ8Wh4pXgvRs/exec';
+const APP_VERSION = '4.7';
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxVS0T8Sbo9PkYhdqgd33RKeP5pTY7Bf6zepkibKQLISSb0IN6t9F2ooQ8Wh4pXgvRs/exec';
 
 // Debug mode: enable with ?debug=1 in URL
-export const DEBUG_MODE = new URLSearchParams(location.search).get('debug') === '1';
+const DEBUG_MODE = new URLSearchParams(location.search).get('debug') === '1';
 
 // Convert Google Drive uc?id=XXX (and related) format to reliable thumbnail URL
-export function toThumbnailUrl(url, size = 200) {
+function toThumbnailUrl(url, size = 200) {
     if (!url || typeof url !== 'string') return url;
     const m = url.match(/drive\.google\.com\/(?:uc\?(?:export=view&)?id=|thumbnail\?id=|file\/d\/)([a-zA-Z0-9_-]+)/);
     if (!m) return url; // base64 data: URIs and other URLs pass through unchanged
@@ -15,7 +15,7 @@ export function toThumbnailUrl(url, size = 200) {
 }
 
 // Attach onerror fallback to swap Drive URL format if primary fails
-export function attachDriveUrlFallback(imgEl, primarySrc) {
+function attachDriveUrlFallback(imgEl, primarySrc) {
     if (!imgEl || !primarySrc || !primarySrc.includes('drive.google.com')) return;
     imgEl.onerror = () => {
         imgEl.onerror = null;
@@ -25,7 +25,7 @@ export function attachDriveUrlFallback(imgEl, primarySrc) {
 }
 
 // Debug overlay — shows tap coordinates + target element
-export function initDebugOverlay() {
+function initDebugOverlay() {
     if (!DEBUG_MODE) return;
     const overlay = document.createElement('div');
     overlay.id = 'debug-overlay';

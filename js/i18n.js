@@ -190,21 +190,17 @@ const translations = {
     }
 };
 
-import { renderProducts } from './products.js';
-import { renderCategories } from './ui/navigation.js'; // Assuming renderCategories will be here or in settings, we will resolve later
-import { renderDynamicForm } from './form.js'; // Example
+let currentLang = 'en';
 
-export let currentLang = 'en';
-
-export function setCurrentLang(lang) {
+function setCurrentLang(lang) {
     currentLang = lang;
 }
 
-export function t(key) {
+function t(key) {
     return translations[currentLang][key] || key;
 }
 
-export function updateTranslations() {
+function updateTranslations() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (el.tagName === 'INPUT') {
