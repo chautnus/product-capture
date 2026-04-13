@@ -14,13 +14,31 @@ function setupAutoSync() {
     if (navigator.onLine && API.url && syncState.pendingChanges.length > 0) {
         setTimeout(() => syncPendingToCloud(), 2000);
     }
+
+    // Recursive setTimeout: pull from cloud every 2min — catches other devices' changes
+    // Uses recursive pattern (not setInterval) to prevent overlap if syncFromCloud > 2min
+    async function pollCloud() {
+        if (navigator.onLine && API.url && !syncState.isSyncing) {
+            try { await syncFromCloud(); } catch(e) { /* silent — background poll */ }
+        }
+        setTimeout(pollCloud, 2 * 60 * 1000);
+    }
+    setTimeout(pollCloud, 2 * 60 * 1000);
 }
 
 // ==================== SYNC FUNCTIONS ====================
 async function syncPendingToCloud() {
+    // Stuck isSyncing guard: auto-reset if stuck > 3 minutes
     if (syncState.isSyncing) {
-        console.log('Already syncing, skipping...');
-        return { synced: 0, failed: 0 };
+        const stuckMs = Date.now() - (syncState.isSyncingStarted || 0);
+        if (stuckMs > 3 * 60 * 1000) {
+            console.warn('[sync] isSyncing stuck for 3min, resetting');
+            syncState.isSyncing = false;
+            syncState.isSyncingStarted = 0;
+        } else {
+            console.log('Already syncing, skipping...');
+            return { synced: 0, failed: 0 };
+        }
     }
 
     if (!API.url) {
@@ -34,6 +52,7 @@ async function syncPendingToCloud() {
     }
 
     syncState.isSyncing = true;
+    syncState.isSyncingStarted = Date.now();
     let synced = 0;
     let failed = 0;
 
@@ -81,10 +100,15 @@ async function syncPendingToCloud() {
         // P5: one batch removal = one saveSyncState() = one DOM update
         if (syncedIds.length > 0) {
             removeFromPendingBatch(syncedIds);
+            // Pull fresh cloud state after successful push — ensures other devices' changes are seen
+            if (navigator.onLine && API.url) {
+                try { await syncFromCloud(); } catch(e) { console.warn('[sync] pull after push failed:', e); }
+            }
         }
     } finally {
-        // A6: always reset isSyncing even if unexpected exception occurs
+        // Always reset — isSyncingStarted = 0 prevents false-positive stuck detection
         syncState.isSyncing = false;
+        syncState.isSyncingStarted = 0;
         syncState.lastSyncTimestamp = Date.now();
         saveSyncState();
     }

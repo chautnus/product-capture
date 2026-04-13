@@ -191,6 +191,14 @@ function initSettingsListeners() {
         try { await syncFromCloud(); showToast(currentLang === 'vi' ? 'Đã tải dữ liệu từ Cloud!' : 'Loaded from Cloud!'); }
         catch (e) { showToast(t('sync_failed')); } finally { btn.textContent = '☁️'; btn.disabled = false; }
     });
+    document.getElementById('clear-stuck-pending')?.addEventListener('click', () => {
+        if (confirm(currentLang === 'vi' ? 'Xoá tất cả pending changes?' : 'Clear all pending changes?')) {
+            syncState.pendingChanges = [];
+            saveSyncState();
+            updatePendingBadge();
+            showToast(currentLang === 'vi' ? 'Đã xoá pending changes' : 'Pending changes cleared');
+        }
+    });
     document.getElementById('export-json').addEventListener('click', () => {
         const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);

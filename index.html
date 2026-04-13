@@ -149,6 +149,13 @@
                     <span id="pending-label">Pending changes</span>
                     <span class="field-tag" id="pending-changes-count" style="background: var(--warning); color: #000;">0</span>
                 </div>
+                <div class="settings-item" style="flex-direction: column; align-items: flex-start; gap: 0;">
+                    <details id="pending-detail" style="width:100%; font-size:0.8rem; color: var(--text-secondary);">
+                        <summary style="cursor:pointer; padding: 4px 0;">Xem chi tiết pending</summary>
+                        <ul id="pending-list" style="margin: 8px 0 0 16px; list-style: disc; line-height: 1.7;"></ul>
+                        <button id="clear-stuck-pending" class="btn btn-secondary" style="margin-top: 10px; font-size:0.8rem; padding: 8px;">🗑 Xoá pending thất bại</button>
+                    </details>
+                </div>
                 <div class="settings-item">
                     <span id="last-sync-label">Last sync</span>
                     <span class="field-tag" id="last-sync-time">Never</span>

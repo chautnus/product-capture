@@ -223,18 +223,33 @@ function isDeleted(type, id) {
 }
 
 function updatePendingBadge() {
+    const pending = syncState.pendingChanges;
+    const count = pending ? pending.length : 0;
+
     const badge = document.getElementById('pending-badge');
-    const count = syncState.pendingChanges.length;
     if (badge) {
-        if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'flex';
-        } else {
-            badge.style.display = 'none';
-        }
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
     }
+
     const pendingCountEl = document.getElementById('pending-changes-count');
-    if (pendingCountEl) {
-        pendingCountEl.textContent = count;
-    }
+    if (pendingCountEl) pendingCountEl.textContent = count;
+
+    // Populate pending detail list — O(N) grouping, timestamp captured in forEach
+    const listEl = document.getElementById('pending-list');
+    if (!listEl) return;
+    if (!pending || count === 0) { listEl.innerHTML = ''; return; }
+
+    const grouped = {};
+    pending.forEach(c => {
+        const key = c.data?.id || c.data?.name || c.id;
+        if (!grouped[key]) grouped[key] = { types: [], ts: c.timestamp };
+        grouped[key].types.push(c.type);
+        if (c.timestamp < grouped[key].ts) grouped[key].ts = c.timestamp;
+    });
+
+    listEl.innerHTML = Object.entries(grouped)
+        .map(([key, { types, ts }]) =>
+            `<li><code>${types.join(' → ')}</code> — ${key} <small>(${new Date(ts).toLocaleTimeString()})</small></li>`)
+        .join('');
 }
