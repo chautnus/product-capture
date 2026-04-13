@@ -55,22 +55,23 @@ Plan: `C:\Users\Chau\.claude\plans\twinkling-puzzling-dongarra.md`
 
 ### Phase 2 — /split-plan google-apps-script.js (1048 lines, SYSTEM LOCK)
 Split thành thư mục gas/ (10 files, tất cả < 250 lines, GAS global scope):
-- [ ] gas/config.js       (~15 lines)  — CONFIG constants
-- [ ] gas/helpers.js      (~60 lines)  — getImagesFolderId, updateSetting, parseJSON, parseImageCell
-- [ ] gas/columns.js      (~105 lines) — getDataColumns, addColumn, syncFieldsToColumns, ensureColumnExists
-- [ ] gas/product-names.js (~65 lines) — getProductNames, addProductName
-- [ ] gas/categories.js   (~70 lines)  — getCategories, saveCategory, deleteCategory
-- [ ] gas/users.js        (~125 lines) — loginUser, getUsers, addUser, updateUser, deleteUser
-- [ ] gas/products.js     (~175 lines) — getData, saveProduct, deleteProduct, uploadImages, getOrCreateSubfolder
-- [ ] gas/sync.js         (~80 lines)  — syncAll
-- [ ] gas/setup.js        (~155 lines) — initialSetup, createImagesFolder
-- [ ] gas/webapp.js       (~100 lines) — doGet, doPost
-- [ ] gas/tests.js        (~30 lines)  — test functions
+- [x] gas/config.js       (15 lines)   — CONFIG constants ✅
+- [x] gas/helpers.js      (59 lines)   — getImagesFolderId, updateSetting, parseJSON, parseImageCell ✅
+- [x] gas/columns.js      (98 lines)   — getDataColumns, addColumn, syncFieldsToColumns, ensureColumnExists ✅
+- [x] gas/product-names.js (67 lines)  — getProductNames, addProductName ✅
+- [x] gas/categories.js   (83 lines)   — getCategories, saveCategory, deleteCategory ✅ (apiVersion→4.7)
+- [x] gas/users.js        (117 lines)  — loginUser, getUsers, addUser, updateUser, deleteUser ✅
+- [x] gas/products.js     (207 lines)  — getData, saveProduct (LockService+ID check), uploadImages, getOrCreateSubfolder, deleteProduct ✅
+- [x] gas/sync.js         (75 lines)   — syncAll ✅
+- [x] gas/setup.js        (148 lines)  — initialSetup, createImagesFolder ✅
+- [x] gas/webapp.js       (93 lines)   — doGet, doPost ✅
+- [x] gas/tests.js        (28 lines)   — test functions ✅
 Note: GAS multi-file = tất cả .gs trong cùng project chia sẻ global scope, không cần import
 
 ### Phase 3 — google-apps-script.js (after split)
-- [ ] saveProduct(): LockService + ID check before appendRow
-- [ ] apiVersion: '4.6' → '4.7' (2 occurrences)
+- [x] saveProduct(): LockService + ID check before appendRow ✅
+- [x] apiVersion: '4.6' → '4.7' (getCategories + getData) ✅
+- [x] Assembled from gas/ files into google-apps-script.js ✅
 
 ### Phase 4
 - [ ] Commit + push + redeploy Apps Script (New version deployment)

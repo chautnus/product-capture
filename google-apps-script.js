@@ -1,10 +1,10 @@
 /**
  * ====================================================
- * PRODUCT CAPTURE - GOOGLE APPS SCRIPT BACKEND v3
+ * PRODUCT CAPTURE - GOOGLE APPS SCRIPT BACKEND v4.7
  * ====================================================
- * 
+ *
  * HƯỚNG DẪN CÀI ĐẶT:
- * 
+ *
  * 1. Tạo Google Sheet mới: https://sheets.new
  * 2. Vào Extensions > Apps Script
  * 3. Xóa code mặc định, paste toàn bộ code này vào
@@ -15,16 +15,17 @@
  *    - Execute as: Me
  *    - Who has access: Anyone
  * 8. Copy URL deployment, paste vào app
- * 
- * VERSION 3.0 - New Features:
- * - Auto create columns for new fields
- * - ProductNames sheet for autocomplete
- * - Dynamic column management
- * 
+ *
+ * VERSION 4.7 - Fixes:
+ * - saveProduct(): LockService + ID check → no more duplicates (Bug 1)
+ * - apiVersion: '4.7' in getCategories & getData (Bug 5)
+ * - Source split into gas/ directory (11 files, all < 250 lines)
+ *
  * ====================================================
  */
 
 // ==================== CẤU HÌNH ====================
+
 const CONFIG = {
   SHEETS: {
     DATA: 'Data',
@@ -34,7 +35,6 @@ const CONFIG = {
     USERS: 'Users'
   },
   IMAGES_FOLDER: 'ProductCapture_Images',
-  // Các cột cố định trong sheet Data
   FIXED_COLUMNS: ['ID', 'Category', 'Created At', 'Images', 'Name', 'Price', 'Data JSON']
 };
 
@@ -42,7 +42,7 @@ const CONFIG = {
 
 function initialSetup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   // 1. Tạo sheet Data
   let dataSheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
   if (!dataSheet) {
@@ -53,10 +53,10 @@ function initialSetup() {
       .setBackground('#4a86e8')
       .setFontColor('white');
     dataSheet.setFrozenRows(1);
-    dataSheet.setColumnWidth(4, 300); // Images
-    dataSheet.setColumnWidth(7, 400); // Data JSON
+    dataSheet.setColumnWidth(4, 300);
+    dataSheet.setColumnWidth(7, 400);
   }
-  
+
   // 2. Tạo sheet Categories
   let categoriesSheet = ss.getSheetByName(CONFIG.SHEETS.CATEGORIES);
   if (!categoriesSheet) {
@@ -67,8 +67,7 @@ function initialSetup() {
       .setBackground('#4a86e8')
       .setFontColor('white');
     categoriesSheet.setFrozenRows(1);
-    
-    // Categories mẫu
+
     const defaultCategories = [
       ['plants', 'Plants', 'Cây cảnh', '🌿', JSON.stringify([
         {id: 'name', name: {en: 'Product Name', vi: 'Tên sản phẩm'}, type: 'text', required: true},
@@ -88,10 +87,10 @@ function initialSetup() {
         {id: 'link', name: {en: 'Link/URL', vi: 'Đường dẫn'}, type: 'url'}
       ])]
     ];
-    
+
     defaultCategories.forEach(row => categoriesSheet.appendRow(row));
   }
-  
+
   // 3. Tạo sheet Settings
   let settingsSheet = ss.getSheetByName(CONFIG.SHEETS.SETTINGS);
   if (!settingsSheet) {
@@ -101,8 +100,8 @@ function initialSetup() {
     settingsSheet.appendRow(['images_folder_id', '']);
     settingsSheet.appendRow(['last_sync', '']);
   }
-  
-  // 4. Tạo sheet ProductNames (MỚI)
+
+  // 4. Tạo sheet ProductNames
   let productNamesSheet = ss.getSheetByName(CONFIG.SHEETS.PRODUCT_NAMES);
   if (!productNamesSheet) {
     productNamesSheet = ss.insertSheet(CONFIG.SHEETS.PRODUCT_NAMES);
@@ -112,9 +111,9 @@ function initialSetup() {
       .setBackground('#6aa84f')
       .setFontColor('white');
     productNamesSheet.setFrozenRows(1);
-    productNamesSheet.setColumnWidth(2, 300); // Name column wider
+    productNamesSheet.setColumnWidth(2, 300);
   }
-  
+
   // 5. Tạo sheet Users
   let usersSheet = ss.getSheetByName(CONFIG.SHEETS.USERS);
   if (!usersSheet) {
@@ -126,24 +125,23 @@ function initialSetup() {
       .setFontColor('white');
     usersSheet.setFrozenRows(1);
     usersSheet.setColumnWidth(2, 180);
-    // Tạo tài khoản admin mặc định
     usersSheet.appendRow(['user_' + Date.now(), 'admin', 'admin123', 'admin', '', new Date().toISOString()]);
   }
 
   // 6. Tạo folder lưu ảnh
   const folderId = createImagesFolder();
-  
-  // 6. Xóa sheet mặc định
+
+  // 7. Xóa sheet mặc định
   const defaultSheet = ss.getSheetByName('Sheet1');
   if (defaultSheet && ss.getSheets().length > 1) {
     ss.deleteSheet(defaultSheet);
   }
-  
-  Logger.log('✅ Setup hoàn tất! Version 3.0');
+
+  Logger.log('✅ Setup hoàn tất! Version 4.7');
   Logger.log('📁 Folder ảnh ID: ' + folderId);
-  
+
   SpreadsheetApp.getUi().alert(
-    '✅ Setup hoàn tất! (Version 3.0)\n\n' +
+    '✅ Setup hoàn tất! (Version 4.7)\n\n' +
     'Các sheet đã tạo:\n' +
     '• Data - Lưu sản phẩm\n' +
     '• Categories - Danh mục\n' +
@@ -161,12 +159,11 @@ function initialSetup() {
 function createImagesFolder() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const settingsSheet = ss.getSheetByName(CONFIG.SHEETS.SETTINGS);
-  
+
   if (!settingsSheet) return null;
-  
+
   const data = settingsSheet.getDataRange().getValues();
-  
-  // Kiểm tra folder đã tồn tại
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === 'images_folder_id' && data[i][1]) {
       try {
@@ -177,19 +174,17 @@ function createImagesFolder() {
       }
     }
   }
-  
-  // Tạo folder mới
+
   const folder = DriveApp.createFolder(CONFIG.IMAGES_FOLDER);
   folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  
-  // Lưu ID
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === 'images_folder_id') {
       settingsSheet.getRange(i + 1, 2).setValue(folder.getId());
       break;
     }
   }
-  
+
   return folder.getId();
 }
 
@@ -198,11 +193,11 @@ function createImagesFolder() {
 function doGet(e) {
   const action = e.parameter.action || 'ping';
   let result;
-  
+
   try {
     switch (action) {
       case 'ping':
-        result = { success: true, message: 'ProductCapture API v3.0', version: '3.0' };
+        result = { success: true, message: 'ProductCapture API v4.7', version: '4.7' };
         break;
       case 'getCategories':
         result = getCategories();
@@ -236,13 +231,13 @@ function doGet(e) {
 
 function doPost(e) {
   let result;
-  
+
   try {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
-    
+
     Logger.log('POST action: ' + action);
-    
+
     switch (action) {
       case 'saveProduct':
         result = saveProduct(data.product);
@@ -284,7 +279,7 @@ function doPost(e) {
     Logger.log('POST error: ' + error.toString());
     result = { success: false, error: error.toString() };
   }
-  
+
   return ContentService
     .createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
@@ -292,126 +287,105 @@ function doPost(e) {
 
 // ==================== COLUMNS MANAGEMENT ====================
 
-/**
- * Lấy danh sách các cột hiện có trong sheet Data
- */
 function getDataColumns() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
-  
+
   if (!sheet || sheet.getLastColumn() === 0) {
     return { success: true, columns: CONFIG.FIXED_COLUMNS };
   }
-  
+
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   return { success: true, columns: headers.filter(h => h) };
 }
 
-/**
- * Thêm cột mới vào sheet Data
- */
 function addColumn(columnName) {
   if (!columnName) {
     return { success: false, error: 'Column name is required' };
   }
-  
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
-  
+
   if (!sheet) {
     return { success: false, error: 'Data sheet not found' };
   }
-  
-  // Lấy headers hiện tại
+
   const lastCol = sheet.getLastColumn();
   const headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
-  
-  // Kiểm tra cột đã tồn tại chưa
+
   if (headers.includes(columnName)) {
     return { success: true, message: 'Column already exists', column: columnName };
   }
-  
-  // Thêm cột mới
+
   const newColIndex = lastCol + 1;
   sheet.getRange(1, newColIndex).setValue(columnName).setFontWeight('bold');
-  
+
   Logger.log('Added column: ' + columnName + ' at index ' + newColIndex);
-  
+
   return { success: true, column: columnName, index: newColIndex };
 }
 
-/**
- * Đồng bộ tất cả fields thành columns
- */
 function syncFieldsToColumns(fields) {
   if (!fields || !Array.isArray(fields)) {
     return { success: false, error: 'Fields array is required' };
   }
-  
+
   const results = [];
-  
+
   fields.forEach(field => {
-    // Sử dụng field.id hoặc field.name.en làm tên cột
     const columnName = field.id || (field.name?.en) || field.name;
     if (columnName && !CONFIG.FIXED_COLUMNS.includes(columnName)) {
       const result = addColumn(columnName);
       results.push({ field: columnName, result: result });
     }
   });
-  
+
   return { success: true, results: results };
 }
 
-/**
- * Đảm bảo cột tồn tại, nếu chưa thì tạo mới
- */
 function ensureColumnExists(columnName) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
-  
+
   if (!sheet) return -1;
-  
+
   const lastCol = sheet.getLastColumn();
   if (lastCol === 0) {
-    // Sheet trống, tạo headers
     CONFIG.FIXED_COLUMNS.forEach((col, i) => {
       sheet.getRange(1, i + 1).setValue(col);
     });
     return -1;
   }
-  
+
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   let colIndex = headers.indexOf(columnName);
-  
+
   if (colIndex === -1) {
-    // Thêm cột mới
     const newColIndex = lastCol + 1;
     sheet.getRange(1, newColIndex).setValue(columnName).setFontWeight('bold');
     colIndex = newColIndex - 1;
     Logger.log('Created column: ' + columnName);
   }
-  
+
   return colIndex;
 }
 
-// ==================== PRODUCT NAMES ====================
+// ==================== PRODUCT NAMES (Autocomplete) ====================
 
-/**
- * Lấy danh sách ProductNames cho autocomplete
- */
 function getProductNames(category) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.PRODUCT_NAMES);
-  
+
   if (!sheet || sheet.getLastRow() <= 1) {
     return { success: true, names: [] };
   }
-  
+
   const data = sheet.getDataRange().getValues();
   const names = [];
-  
+
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1]) { // Name column
+    if (data[i][1]) {
       if (!category || category === 'all' || data[i][2] === category) {
         names.push({
           id: data[i][0],
@@ -421,29 +395,24 @@ function getProductNames(category) {
       }
     }
   }
-  
-  // Sắp xếp theo tên
+
   names.sort((a, b) => a.name.localeCompare(b.name));
-  
+
   return { success: true, names: names };
 }
 
-/**
- * Thêm ProductName mới
- */
 function addProductName(name, category) {
   if (!name) {
     return { success: false, error: 'Name is required' };
   }
-  
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.PRODUCT_NAMES);
-  
+
   if (!sheet) {
     return { success: false, error: 'ProductNames sheet not found. Run initialSetup()' };
   }
-  
-  // Kiểm tra đã tồn tại chưa
+
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][1] && data[i][1].toLowerCase() === name.toLowerCase()) {
@@ -452,13 +421,12 @@ function addProductName(name, category) {
       }
     }
   }
-  
-  // Thêm mới
+
   const id = 'pn_' + Date.now();
   sheet.appendRow([id, name, category || '', new Date().toISOString()]);
-  
+
   Logger.log('Added product name: ' + name);
-  
+
   return { success: true, id: id, name: name, category: category };
 }
 
@@ -467,14 +435,14 @@ function addProductName(name, category) {
 function getCategories() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.CATEGORIES);
-  
+
   if (!sheet) {
     return { success: false, error: 'Categories sheet not found' };
   }
-  
+
   const data = sheet.getDataRange().getValues();
   const categories = [];
-  
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0]) {
       categories.push({
@@ -485,363 +453,21 @@ function getCategories() {
       });
     }
   }
-  
-  return { success: true, categories: categories, apiVersion: '4.6', deployedAt: '2026-04-08' };
+
+  return { success: true, categories: categories, apiVersion: '4.7', deployedAt: new Date().toISOString().split('T')[0] };
 }
 
-// ==================== DATA (PRODUCTS) ====================
-
-function getData(category) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
-  
-  if (!sheet || sheet.getLastRow() <= 1) {
-    return { success: true, products: [] };
-  }
-  
-  const allData = sheet.getDataRange().getValues();
-  const headers = allData[0];
-  let products = [];
-  
-  for (let i = 1; i < allData.length; i++) {
-    if (allData[i][0]) {
-      // Parse data từ cột Data JSON
-      let productData = parseJSON(allData[i][6], {});
-      
-      // Override với các cột động
-      for (let j = 7; j < headers.length; j++) {
-        if (headers[j] && allData[i][j]) {
-          productData[headers[j]] = allData[i][j];
-        }
-      }
-      
-      // Override name và price
-      productData.name = allData[i][4] || productData.name;
-      productData.price = allData[i][5] || productData.price;
-      
-      const product = {
-        id: allData[i][0],
-        category: allData[i][1],
-        createdAt: allData[i][2],
-        images: parseImageCell(allData[i][3]),
-        data: productData
-      };
-      
-      if (!category || category === 'all' || product.category === category) {
-        products.push(product);
-      }
-    }
-  }
-  
-  products.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  
-  return { success: true, products: products, apiVersion: '4.6', deployedAt: '2026-04-08' };
-}
-
-function saveProduct(product) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
-  
-  if (!sheet) {
-    return { success: false, error: 'Data sheet not found' };
-  }
-  
-  // Upload ảnh vào folder có cấu trúc: Parent > Category > ProductName
-  let imageUrls = uploadImages(product.images || [], product.id, product.category, product.data?.name);
-  
-  // Lấy headers hiện tại
-  const lastCol = sheet.getLastColumn();
-  const headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : CONFIG.FIXED_COLUMNS;
-  
-  // Tạo row data
-  const rowData = new Array(headers.length).fill('');
-  
-  // Fixed columns
-  rowData[0] = product.id;
-  rowData[1] = product.category;
-  rowData[2] = product.createdAt || new Date().toISOString();
-  // Format ảnh: không có [""], chỉ URLs phân cách bởi dấu phẩy
-  rowData[3] = imageUrls.join(', ');
-  rowData[4] = product.data?.name || '';
-  rowData[5] = product.data?.price || '';
-  rowData[6] = JSON.stringify(product.data);
-  
-  // Dynamic columns - đảm bảo cột tồn tại và ghi giá trị
-  if (product.data) {
-    Object.keys(product.data).forEach(key => {
-      if (key !== 'name' && key !== 'price') {
-        let colIndex = headers.indexOf(key);
-        
-        // Nếu cột chưa tồn tại, tạo mới
-        if (colIndex === -1) {
-          const newColIndex = sheet.getLastColumn() + 1;
-          sheet.getRange(1, newColIndex).setValue(key).setFontWeight('bold');
-          
-          // Cập nhật rowData
-          rowData.push(product.data[key]);
-          headers.push(key);
-        } else {
-          rowData[colIndex] = product.data[key];
-        }
-      }
-    });
-  }
-  
-  // Append row
-  sheet.appendRow(rowData);
-  
-  // Thêm vào ProductNames nếu chưa có
-  if (product.data?.name) {
-    addProductName(product.data.name, product.category);
-  }
-  
-  Logger.log('Saved product: ' + product.id + ' with ' + imageUrls.length + ' images');
-  
-  return { 
-    success: true, 
-    product: { ...product, images: imageUrls },
-    message: 'Saved with ' + imageUrls.length + ' images'
-  };
-}
-
-/**
- * Upload ảnh với cấu trúc thư mục: Parent > Category > ProductName
- */
-function uploadImages(images, productId, category, productName) {
-  const imageUrls = [];
-  
-  if (!images || images.length === 0) return imageUrls;
-  
-  const parentFolderId = getImagesFolderId();
-  if (!parentFolderId) return imageUrls;
-  
-  const parentFolder = DriveApp.getFolderById(parentFolderId);
-  
-  // Tạo/lấy folder Category
-  const categoryFolderName = category || 'uncategorized';
-  let categoryFolder = getOrCreateSubfolder(parentFolder, categoryFolderName);
-  
-  // Tạo/lấy folder ProductName
-  const productFolderName = (productName || productId || 'unknown').toString().replace(/[\/\\:*?"<>|]/g, '_');
-  let productFolder = getOrCreateSubfolder(categoryFolder, productFolderName);
-  
-  for (let i = 0; i < images.length; i++) {
-    const imageData = images[i];
-    
-    if (imageData && imageData.startsWith('data:image')) {
-      try {
-        const base64 = imageData.split(',')[1];
-        const blob = Utilities.newBlob(
-          Utilities.base64Decode(base64), 
-          'image/jpeg', 
-          productId + '_' + i + '.jpg'
-        );
-        const file = productFolder.createFile(blob);
-        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        imageUrls.push('https://drive.google.com/uc?id=' + file.getId());
-      } catch (e) {
-        Logger.log('Image upload error: ' + e.toString());
-      }
-    } else if (imageData && imageData.startsWith('http')) {
-      imageUrls.push(imageData);
-    }
-  }
-  
-  return imageUrls;
-}
-
-/**
- * Lấy hoặc tạo subfolder trong folder cha
- */
-function getOrCreateSubfolder(parentFolder, folderName) {
-  const folders = parentFolder.getFoldersByName(folderName);
-  
-  if (folders.hasNext()) {
-    return folders.next();
-  }
-  
-  // Tạo folder mới
-  const newFolder = parentFolder.createFolder(folderName);
-  newFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return newFolder;
-}
-
-function deleteProduct(id) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
-  
-  if (!sheet) return { success: false, error: 'Data sheet not found' };
-  
-  const data = sheet.getDataRange().getValues();
-  
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
-    }
-  }
-  
-  return { success: false, error: 'Product not found' };
-}
-
-// ==================== SYNC ====================
-
-function syncAll(data) {
-  const results = {
-    categories: { synced: 0, errors: [] },
-    products: { synced: 0, errors: [] },
-    columns: { created: 0 }
-  };
-  
-  Logger.log('Starting syncAll v3...');
-  
-  // 1. Sync categories và tạo columns cho fields
-  if (data.categories && data.categories.length > 0) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName(CONFIG.SHEETS.CATEGORIES);
-    
-    if (sheet) {
-      if (sheet.getLastRow() > 1) {
-        sheet.deleteRows(2, sheet.getLastRow() - 1);
-      }
-      
-      data.categories.forEach(cat => {
-        try {
-          sheet.appendRow([
-            cat.id,
-            cat.name?.en || cat.name || '',
-            cat.name?.vi || cat.name || '',
-            cat.icon || '📦',
-            JSON.stringify(cat.fields || [])
-          ]);
-          results.categories.synced++;
-          
-          // Tạo columns cho fields
-          if (cat.fields) {
-            cat.fields.forEach(field => {
-              const colName = field.id || field.name?.en || field.name;
-              if (colName && !CONFIG.FIXED_COLUMNS.includes(colName) && colName !== 'name' && colName !== 'price') {
-                const added = addColumn(colName);
-                if (added.success && added.index) {
-                  results.columns.created++;
-                }
-              }
-            });
-          }
-        } catch (e) {
-          results.categories.errors.push({ id: cat.id, error: e.toString() });
-        }
-      });
-    }
-  }
-  
-  // 2. Sync products
-  if (data.products && data.products.length > 0) {
-    data.products.forEach(product => {
-      try {
-        const result = saveProduct(product);
-        if (result.success) {
-          results.products.synced++;
-        } else {
-          results.products.errors.push({ id: product.id, error: result.error });
-        }
-      } catch (e) {
-        results.products.errors.push({ id: product.id, error: e.toString() });
-      }
-    });
-  }
-  
-  updateSetting('last_sync', new Date().toISOString());
-  
-  Logger.log('Sync completed: ' + JSON.stringify(results));
-  
-  return { 
-    success: true, 
-    results: results,
-    message: `Synced ${results.categories.synced} categories, ${results.products.synced} products, created ${results.columns.created} columns`
-  };
-}
-
-// ==================== HELPERS ====================
-
-function getImagesFolderId() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.SETTINGS);
-  
-  if (!sheet) return null;
-  
-  const data = sheet.getDataRange().getValues();
-  
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === 'images_folder_id' && data[i][1]) {
-      return data[i][1];
-    }
-  }
-  
-  return createImagesFolder();
-}
-
-function updateSetting(key, value) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(CONFIG.SHEETS.SETTINGS);
-  
-  if (!sheet) return;
-  
-  const data = sheet.getDataRange().getValues();
-  
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === key) {
-      sheet.getRange(i + 1, 2).setValue(value);
-      return;
-    }
-  }
-  
-  sheet.appendRow([key, value]);
-}
-
-function parseJSON(str, defaultValue) {
-  try {
-    if (typeof str === 'object') return str;
-    return JSON.parse(str);
-  } catch (e) {
-    return defaultValue;
-  }
-}
-
-// Parse image cell: supports JSON array, comma-separated string, or empty
-// Backwards compatible with existing sheet data stored as "url1, url2, url3"
-function parseImageCell(cell) {
-  if (!cell) return [];
-  if (Array.isArray(cell)) return cell;
-  const s = String(cell).trim();
-  if (!s) return [];
-  if (s.charAt(0) === '[') {
-    try { return JSON.parse(s); } catch (e) { /* fall through */ }
-  }
-  // Comma-separated fallback
-  return s.split(',').map(function(x) { return x.trim(); }).filter(function(x) { return x.length > 0; });
-}
-
-// ==================== TEST FUNCTIONS ====================
-
-// ==================== CATEGORY MANAGEMENT ====================
-
-/**
- * Lưu hoặc cập nhật category
- */
 function saveCategory(category) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.CATEGORIES);
-  
+
   if (!sheet) return { success: false, error: 'Categories sheet not found' };
-  
+
   const data = sheet.getDataRange().getValues();
   let found = false;
-  
-  // Tìm category có sẵn
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === category.id) {
-      // Cập nhật
       sheet.getRange(i + 1, 1, 1, 5).setValues([[
         category.id,
         category.name?.en || category.name || '',
@@ -853,9 +479,8 @@ function saveCategory(category) {
       break;
     }
   }
-  
+
   if (!found) {
-    // Thêm mới
     sheet.appendRow([
       category.id,
       category.name?.en || category.name || '',
@@ -864,21 +489,18 @@ function saveCategory(category) {
       JSON.stringify(category.fields || [])
     ]);
   }
-  
+
   return { success: true, category: category };
 }
 
-/**
- * Xóa category
- */
 function deleteCategory(categoryId) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(CONFIG.SHEETS.CATEGORIES);
-  
+
   if (!sheet) return { success: false, error: 'Categories sheet not found' };
-  
+
   const data = sheet.getDataRange().getValues();
-  
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === categoryId) {
       sheet.deleteRow(i + 1);
@@ -886,7 +508,7 @@ function deleteCategory(categoryId) {
       return { success: true };
     }
   }
-  
+
   return { success: false, error: 'Category not found' };
 }
 
@@ -1016,6 +638,328 @@ function deleteUser(userId) {
   return { success: false, error: 'User not found' };
 }
 
+// ==================== DATA (PRODUCTS) ====================
+
+function getData(category) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
+
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return { success: true, products: [] };
+  }
+
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  let products = [];
+
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][0]) {
+      let productData = parseJSON(allData[i][6], {});
+
+      for (let j = 7; j < headers.length; j++) {
+        if (headers[j] && allData[i][j]) {
+          productData[headers[j]] = allData[i][j];
+        }
+      }
+
+      productData.name = allData[i][4] || productData.name;
+      productData.price = allData[i][5] || productData.price;
+
+      const product = {
+        id: allData[i][0],
+        category: allData[i][1],
+        createdAt: allData[i][2],
+        images: parseImageCell(allData[i][3]),
+        data: productData
+      };
+
+      if (!category || category === 'all' || product.category === category) {
+        products.push(product);
+      }
+    }
+  }
+
+  products.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  return { success: true, products: products, apiVersion: '4.7', deployedAt: new Date().toISOString().split('T')[0] };
+}
+
+/**
+ * Lưu hoặc cập nhật sản phẩm — atomic write với LockService để tránh duplicate
+ * ID check trước appendRow: nếu tồn tại → update, không → append (Bug 1 fix)
+ */
+function saveProduct(product) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
+
+  if (!sheet) {
+    return { success: false, error: 'Data sheet not found' };
+  }
+
+  let imageUrls = uploadImages(product.images || [], product.id, product.category, product.data?.name);
+
+  const lastCol = sheet.getLastColumn();
+  const headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : CONFIG.FIXED_COLUMNS;
+
+  const rowData = new Array(headers.length).fill('');
+
+  rowData[0] = product.id;
+  rowData[1] = product.category;
+  rowData[2] = product.createdAt || new Date().toISOString();
+  rowData[3] = imageUrls.join(', ');
+  rowData[4] = product.data?.name || '';
+  rowData[5] = product.data?.price || '';
+  rowData[6] = JSON.stringify(product.data);
+
+  if (product.data) {
+    Object.keys(product.data).forEach(key => {
+      if (key !== 'name' && key !== 'price') {
+        let colIndex = headers.indexOf(key);
+        if (colIndex === -1) {
+          const newColIndex = sheet.getLastColumn() + 1;
+          sheet.getRange(1, newColIndex).setValue(key).setFontWeight('bold');
+          rowData.push(product.data[key]);
+          headers.push(key);
+        } else {
+          rowData[colIndex] = product.data[key];
+        }
+      }
+    });
+  }
+
+  // Atomic write: LockService prevents race condition when 2 devices push same ID simultaneously
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+
+    // ID check: update existing row instead of blind append (Bug 1 dedup fix)
+    const allData = sheet.getDataRange().getValues();
+    let existingRowIndex = -1;
+    for (let i = 1; i < allData.length; i++) {
+      if (allData[i][0] === product.id) { existingRowIndex = i + 1; break; }
+    }
+
+    if (existingRowIndex !== -1) {
+      sheet.getRange(existingRowIndex, 1, 1, rowData.length).setValues([rowData]);
+      Logger.log('Updated product: ' + product.id);
+    } else {
+      sheet.appendRow(rowData);
+      Logger.log('Saved new product: ' + product.id + ' with ' + imageUrls.length + ' images');
+    }
+  } finally {
+    lock.releaseLock();
+  }
+
+  if (product.data?.name) {
+    addProductName(product.data.name, product.category);
+  }
+
+  return {
+    success: true,
+    product: { ...product, images: imageUrls },
+    message: 'Saved with ' + imageUrls.length + ' images'
+  };
+}
+
+function uploadImages(images, productId, category, productName) {
+  const imageUrls = [];
+
+  if (!images || images.length === 0) return imageUrls;
+
+  const parentFolderId = getImagesFolderId();
+  if (!parentFolderId) return imageUrls;
+
+  const parentFolder = DriveApp.getFolderById(parentFolderId);
+
+  const categoryFolderName = category || 'uncategorized';
+  let categoryFolder = getOrCreateSubfolder(parentFolder, categoryFolderName);
+
+  const productFolderName = (productName || productId || 'unknown').toString().replace(/[\/\\:*?"<>|]/g, '_');
+  let productFolder = getOrCreateSubfolder(categoryFolder, productFolderName);
+
+  for (let i = 0; i < images.length; i++) {
+    const imageData = images[i];
+
+    if (imageData && imageData.startsWith('data:image')) {
+      try {
+        const base64 = imageData.split(',')[1];
+        const blob = Utilities.newBlob(
+          Utilities.base64Decode(base64),
+          'image/jpeg',
+          productId + '_' + i + '.jpg'
+        );
+        const file = productFolder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        imageUrls.push('https://drive.google.com/uc?id=' + file.getId());
+      } catch (e) {
+        Logger.log('Image upload error: ' + e.toString());
+      }
+    } else if (imageData && imageData.startsWith('http')) {
+      imageUrls.push(imageData);
+    }
+  }
+
+  return imageUrls;
+}
+
+function getOrCreateSubfolder(parentFolder, folderName) {
+  const folders = parentFolder.getFoldersByName(folderName);
+  if (folders.hasNext()) return folders.next();
+  const newFolder = parentFolder.createFolder(folderName);
+  newFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return newFolder;
+}
+
+function deleteProduct(id) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.DATA);
+
+  if (!sheet) return { success: false, error: 'Data sheet not found' };
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === id) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+
+  return { success: false, error: 'Product not found' };
+}
+
+// ==================== SYNC ====================
+
+function syncAll(data) {
+  const results = {
+    categories: { synced: 0, errors: [] },
+    products: { synced: 0, errors: [] },
+    columns: { created: 0 }
+  };
+
+  Logger.log('Starting syncAll v4.7...');
+
+  if (data.categories && data.categories.length > 0) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(CONFIG.SHEETS.CATEGORIES);
+
+    if (sheet) {
+      if (sheet.getLastRow() > 1) {
+        sheet.deleteRows(2, sheet.getLastRow() - 1);
+      }
+
+      data.categories.forEach(cat => {
+        try {
+          sheet.appendRow([
+            cat.id,
+            cat.name?.en || cat.name || '',
+            cat.name?.vi || cat.name || '',
+            cat.icon || '📦',
+            JSON.stringify(cat.fields || [])
+          ]);
+          results.categories.synced++;
+
+          if (cat.fields) {
+            cat.fields.forEach(field => {
+              const colName = field.id || field.name?.en || field.name;
+              if (colName && !CONFIG.FIXED_COLUMNS.includes(colName) && colName !== 'name' && colName !== 'price') {
+                const added = addColumn(colName);
+                if (added.success && added.index) {
+                  results.columns.created++;
+                }
+              }
+            });
+          }
+        } catch (e) {
+          results.categories.errors.push({ id: cat.id, error: e.toString() });
+        }
+      });
+    }
+  }
+
+  if (data.products && data.products.length > 0) {
+    data.products.forEach(product => {
+      try {
+        const result = saveProduct(product);
+        if (result.success) {
+          results.products.synced++;
+        } else {
+          results.products.errors.push({ id: product.id, error: result.error });
+        }
+      } catch (e) {
+        results.products.errors.push({ id: product.id, error: e.toString() });
+      }
+    });
+  }
+
+  updateSetting('last_sync', new Date().toISOString());
+
+  Logger.log('Sync completed: ' + JSON.stringify(results));
+
+  return {
+    success: true,
+    results: results,
+    message: 'Synced ' + results.categories.synced + ' categories, ' + results.products.synced + ' products, created ' + results.columns.created + ' columns'
+  };
+}
+
+// ==================== HELPERS ====================
+
+function getImagesFolderId() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.SETTINGS);
+
+  if (!sheet) return null;
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === 'images_folder_id' && data[i][1]) {
+      return data[i][1];
+    }
+  }
+
+  return createImagesFolder();
+}
+
+function updateSetting(key, value) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.SETTINGS);
+
+  if (!sheet) return;
+
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      return;
+    }
+  }
+
+  sheet.appendRow([key, value]);
+}
+
+function parseJSON(str, defaultValue) {
+  try {
+    if (typeof str === 'object') return str;
+    return JSON.parse(str);
+  } catch (e) {
+    return defaultValue;
+  }
+}
+
+function parseImageCell(cell) {
+  if (!cell) return [];
+  if (Array.isArray(cell)) return cell;
+  const s = String(cell).trim();
+  if (!s) return [];
+  if (s.charAt(0) === '[') {
+    try { return JSON.parse(s); } catch (e) { /* fall through */ }
+  }
+  return s.split(',').map(function(x) { return x.trim(); }).filter(function(x) { return x.length > 0; });
+}
+
 // ==================== TEST FUNCTIONS ====================
 
 function testSaveProduct() {
@@ -1032,7 +976,7 @@ function testSaveProduct() {
       custom_field: 'Custom Value'
     }
   };
-  
+
   const result = saveProduct(testProduct);
   Logger.log('Test result: ' + JSON.stringify(result));
 }
