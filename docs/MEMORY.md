@@ -45,16 +45,28 @@ Plan: `C:\Users\Chau\.claude\plans\twinkling-puzzling-dongarra.md`
 | 4 | Categories don't sync cross-device | setupAutoSync has no interval, no pull after push | 🔄 Phase 1 |
 | 5 | Version warning (apiVersion 4.6 vs 4.7) | GAS not redeployed | 🔒 Needs GAS split first |
 
-### Phase 1 — js/sync.js + index.html + js/data.js + js/app.js
-- [ ] setupAutoSync: add recursive setTimeout pollCloud() every 2min
-- [ ] syncPendingToCloud: pull from cloud after successful push
-- [ ] syncPendingToCloud: isSyncing stuck guard (3min timeout, reset in finally)
-- [ ] index.html: #pending-detail expandable list + clear button
-- [ ] js/data.js: updatePendingBadge O(N) grouped display
-- [ ] js/app.js: clear-stuck-pending click handler
+### Phase 1 ✅ DONE (commit 3277a72)
+- [x] setupAutoSync: recursive pollCloud() every 2min
+- [x] syncPendingToCloud: pull from cloud after successful push
+- [x] syncPendingToCloud: isSyncing stuck guard (3min, reset in finally)
+- [x] index.html: #pending-detail expandable list + clear button
+- [x] js/data.js: updatePendingBadge O(N) grouped display
+- [x] js/app.js: clear-stuck-pending click handler
 
 ### Phase 2 — /split-plan google-apps-script.js (1048 lines, SYSTEM LOCK)
-- [ ] Run split-plan → approve → execute split
+Split thành thư mục gas/ (10 files, tất cả < 250 lines, GAS global scope):
+- [ ] gas/config.js       (~15 lines)  — CONFIG constants
+- [ ] gas/helpers.js      (~60 lines)  — getImagesFolderId, updateSetting, parseJSON, parseImageCell
+- [ ] gas/columns.js      (~105 lines) — getDataColumns, addColumn, syncFieldsToColumns, ensureColumnExists
+- [ ] gas/product-names.js (~65 lines) — getProductNames, addProductName
+- [ ] gas/categories.js   (~70 lines)  — getCategories, saveCategory, deleteCategory
+- [ ] gas/users.js        (~125 lines) — loginUser, getUsers, addUser, updateUser, deleteUser
+- [ ] gas/products.js     (~175 lines) — getData, saveProduct, deleteProduct, uploadImages, getOrCreateSubfolder
+- [ ] gas/sync.js         (~80 lines)  — syncAll
+- [ ] gas/setup.js        (~155 lines) — initialSetup, createImagesFolder
+- [ ] gas/webapp.js       (~100 lines) — doGet, doPost
+- [ ] gas/tests.js        (~30 lines)  — test functions
+Note: GAS multi-file = tất cả .gs trong cùng project chia sẻ global scope, không cần import
 
 ### Phase 3 — google-apps-script.js (after split)
 - [ ] saveProduct(): LockService + ID check before appendRow
