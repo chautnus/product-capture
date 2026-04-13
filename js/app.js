@@ -106,13 +106,15 @@ function initModalListeners() {
         if (!nameEn) return;
         const nameVi = document.getElementById('new-category-name-vi').value.trim() || nameEn;
         const icon = document.getElementById('new-category-icon').value.trim() || '📦';
-        appData.categories.push({
+        const newCat = {
             id: nameEn.toLowerCase().replace(/\s+/g, '_'), name: { en: nameEn, vi: nameVi }, icon,
             fields: [
                 { id: 'name', name: { en: 'Product Name', vi: 'Tên sản phẩm' }, type: 'text', required: true },
                 { id: 'price', name: { en: 'Price', vi: 'Giá' }, type: 'number' }
             ]
-        });
+        };
+        appData.categories.push(newCat);
+        addToPending('CREATE_CATEGORY', newCat);
         saveData(); renderCategories(); renderCategoriesSettings(); closeModal('modal-add-category');
         showToast(currentLang === 'vi' ? 'Đã thêm danh mục' : 'Category added');
         ['new-category-name', 'new-category-name-vi', 'new-category-icon'].forEach(id => document.getElementById(id).value = '');
@@ -124,6 +126,7 @@ function initModalListeners() {
         category.name.en = document.getElementById('edit-category-name').value.trim() || category.name.en;
         category.name.vi = document.getElementById('edit-category-name-vi').value.trim() || category.name.vi;
         category.icon = document.getElementById('edit-category-icon').value.trim() || category.icon;
+        addToPending('UPDATE_CATEGORY', { ...category });
         saveData(); renderCategories(); renderCategoriesSettings(); closeModal('modal-edit-category');
         showToast(currentLang === 'vi' ? 'Đã lưu thay đổi' : 'Changes saved');
     });
@@ -137,80 +140,6 @@ function initModalListeners() {
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         if (overlay.id === 'modal-login') return;
         overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('active'); });
-    });
-}
-
-function initSettingsListeners() {
-    document.getElementById('test-connection').addEventListener('click', async () => {
-        const url = document.getElementById('api-url-input').value.trim();
-        if (!url) { alert('Please enter the Apps Script URL'); return; }
-        localStorage.setItem('productSnapAPIUrl', url);
-        API.url = url;
-        const statusEl = document.getElementById('connection-status');
-        statusEl.textContent = t('connecting');
-        statusEl.className = 'field-tag type-boolean';
-        try {
-            const result = await API.ping();
-            if (result && result.success) {
-                statusEl.textContent = t('connected'); statusEl.style.borderLeftColor = 'var(--success)';
-                document.getElementById('sync-now').style.display = 'block';
-                document.getElementById('sync-from-cloud').style.display = 'block';
-                showToast(t('connected'));
-            } else { throw new Error('Connection failed'); }
-        } catch (e) {
-            statusEl.textContent = t('not_connected'); statusEl.style.borderLeftColor = 'var(--danger)';
-            document.getElementById('sync-now').style.display = 'none';
-            document.getElementById('sync-from-cloud').style.display = 'none';
-            showToast(t('sync_failed'));
-        }
-    });
-    // Bug 3 fix: Only ONE listener on sync-now
-    document.getElementById('sync-now').addEventListener('click', async () => {
-        const btn = document.getElementById('sync-now');
-        btn.disabled = true; btn.textContent = currentLang === 'vi' ? 'Đang đồng bộ...' : 'Syncing...';
-        try {
-            const result = await syncPendingToCloud();
-            if (result.synced > 0 && result.failed === 0) showToast(currentLang === 'vi' ? `Đã đồng bộ ${result.synced} thay đổi!` : `Synced ${result.synced} changes!`);
-            else if (result.synced > 0) showToast(currentLang === 'vi' ? `Đồng bộ ${result.synced}, thất bại ${result.failed}` : `Synced ${result.synced}, failed ${result.failed}`);
-            else if (result.failed > 0) showToast(currentLang === 'vi' ? `${result.failed} thay đổi thất bại.` : `${result.failed} changes failed.`);
-            else showToast(currentLang === 'vi' ? 'Không có thay đổi cần đồng bộ' : 'No pending changes');
-        } catch (e) { showToast(t('sync_failed')); }
-        btn.disabled = false; btn.textContent = t('sync_now');
-    });
-    document.getElementById('sync-from-cloud').addEventListener('click', async () => {
-        const btn = document.getElementById('sync-from-cloud');
-        btn.disabled = true; btn.textContent = currentLang === 'vi' ? 'Đang tải...' : 'Loading...';
-        try { await syncFromCloud(); showToast(currentLang === 'vi' ? 'Đã đồng bộ từ Cloud!' : 'Synced from Cloud!'); }
-        catch (e) { showToast(t('sync_failed')); }
-        btn.disabled = false; btn.textContent = t('sync_from_cloud');
-    });
-    document.getElementById('cloud-refresh-btn')?.addEventListener('click', async () => {
-        if (!API.url) { showToast(currentLang === 'vi' ? 'Chưa cấu hình API URL (vào Settings)' : 'API URL not configured'); return; }
-        const btn = document.getElementById('cloud-refresh-btn');
-        btn.textContent = '⏳'; btn.disabled = true;
-        try { await syncFromCloud(); showToast(currentLang === 'vi' ? 'Đã tải dữ liệu từ Cloud!' : 'Loaded from Cloud!'); }
-        catch (e) { showToast(t('sync_failed')); } finally { btn.textContent = '☁️'; btn.disabled = false; }
-    });
-    document.getElementById('clear-stuck-pending')?.addEventListener('click', () => {
-        if (confirm(currentLang === 'vi' ? 'Xoá tất cả pending changes?' : 'Clear all pending changes?')) {
-            syncState.pendingChanges = [];
-            saveSyncState();
-            updatePendingBadge();
-            showToast(currentLang === 'vi' ? 'Đã xoá pending changes' : 'Pending changes cleared');
-        }
-    });
-    document.getElementById('export-json').addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `productsnap_export_${new Date().toISOString().split('T')[0]}.json`;
-        a.click(); URL.revokeObjectURL(url);
-    });
-    document.getElementById('clear-data').addEventListener('click', () => {
-        if (confirm(t('confirm_clear'))) {
-            appData = { categories: appData.categories, products: [] };
-            saveData(); renderProducts(); updateLocalDataCount(); showToast(t('data_cleared'));
-        }
     });
 }
 

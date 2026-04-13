@@ -73,5 +73,12 @@ Note: GAS multi-file = tất cả .gs trong cùng project chia sẻ global scope
 - [x] apiVersion: '4.6' → '4.7' (getCategories + getData) ✅
 - [x] Assembled from gas/ files into google-apps-script.js ✅
 
-### Phase 4
-- [ ] Commit + push + redeploy Apps Script (New version deployment)
+### Phase 4 ✅ DONE (commit 42ebebb)
+- [x] gas/ split: 11 files committed + pushed
+- [x] google-apps-script.js assembled + pushed
+- [ ] Redeploy Apps Script in GAS editor (manual — user pending)
+
+### Phase 5 ✅ DONE — Category sync bugs
+- [x] Bug A: `confirm-add-category` → `addToPending('CREATE_CATEGORY', newCat)` added (js/app.js)
+- [x] Bug B: `confirm-edit-category` → `addToPending('UPDATE_CATEGORY', {...category})` added (js/app.js)
+- [x] Split: `initSettingsListeners` moved app.js→settings.js (app.js: 275→204 lines)
