@@ -1,6 +1,9 @@
 // ==================== CONFIG ====================
-const APP_VERSION = '4.7';
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxVS0T8Sbo9PkYhdqgd33RKeP5pTY7Bf6zepkibKQLISSb0IN6t9F2ooQ8Wh4pXgvRs/exec';
+const APP_VERSION = '5.0';
+
+// ⚙️ Google Cloud Console → OAuth 2.0 Client ID (Web application)
+// Thay bằng Client ID thật sau khi tạo trên console.cloud.google.com
+const OAUTH_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
 
 // Debug mode: enable with ?debug=1 in URL
 const DEBUG_MODE = new URLSearchParams(location.search).get('debug') === '1';
@@ -23,6 +26,36 @@ function attachDriveUrlFallback(imgEl, primarySrc) {
         if (m) imgEl.src = `https://drive.google.com/uc?export=view&id=${m[1]}`;
     };
 }
+
+// ==================== DYNAMIC SCRIPT LOADER ====================
+// Load Google Identity Services + new API modules sau khi config.js xong
+// Không chạm vào index.html (SYSTEM LOCK). Dispatch 'google-api-ready' khi xong.
+(function () {
+    const SCRIPTS = [
+        'https://accounts.google.com/gsi/client',
+        `js/oauth.js?v=${APP_VERSION}`,
+        `js/sheets-api.js?v=${APP_VERSION}`,
+        `js/drive-api.js?v=${APP_VERSION}`,
+        `js/wizard.js?v=${APP_VERSION}`,
+    ];
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload  = resolve;
+            s.onerror = () => reject(new Error(`Script load failed: ${src}`));
+            document.head.appendChild(s);
+        });
+    }
+
+    SCRIPTS.reduce((chain, src) => chain.then(() => loadScript(src)), Promise.resolve())
+        .then(() => {
+            window._gApiReady = true;
+            document.dispatchEvent(new CustomEvent('google-api-ready'));
+        })
+        .catch(err => console.error('[config] Script load error:', err));
+})();
 
 // Debug overlay — shows tap coordinates + target element
 function initDebugOverlay() {

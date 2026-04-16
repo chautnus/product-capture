@@ -146,16 +146,6 @@ function initModalListeners() {
 function initAuthListeners() {
     document.getElementById('login-submit')?.addEventListener('click', submitLogin);
     document.getElementById('login-password')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin(); });
-    document.getElementById('login-save-api-btn')?.addEventListener('click', () => {
-        const url = document.getElementById('login-api-url-input')?.value.trim();
-        if (url) {
-            API.url = url; localStorage.setItem('productSnapAPIUrl', url);
-            document.getElementById('api-url-input').value = url;
-            document.getElementById('login-setup-section').style.display = 'none';
-            showToast(currentLang === 'vi' ? 'Đã lưu URL! Đăng nhập lại.' : 'URL saved! Now login.');
-            document.getElementById('login-username').focus();
-        }
-    });
     document.getElementById('logout-btn')?.addEventListener('click', logoutUser);
     document.getElementById('add-user')?.addEventListener('click', addNewUser);
     document.getElementById('confirm-add-user')?.addEventListener('click', confirmAddUser);
@@ -163,7 +153,6 @@ function initAuthListeners() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initDebugOverlay();
-    loadAuthState();
     loadData();
     initNavListeners();
     initCameraListeners();
@@ -173,17 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderCategories();
     renderCapturedImages();
-
-    const savedApiUrl = localStorage.getItem('productSnapAPIUrl') || DEFAULT_API_URL;
-    document.getElementById('api-url-input').value = savedApiUrl;
-    updateConnectionStatus();
     updateLocalDataCount();
     updatePendingBadge();
     updateLastSyncDisplay();
-    setupAutoSync();
-
-    if (!currentUser) showLoginModal(); else applyRoleUI();
-    if (API.url) { const s = document.getElementById('login-setup-section'); if (s) s.style.display = 'none'; }
 
     const verEl = document.getElementById('app-version-display');
     if (verEl) verEl.textContent = APP_VERSION;
@@ -199,6 +180,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const swEl = document.getElementById('sw-version-display');
             if (swEl && reg) swEl.textContent = reg.active ? 'active' : reg.installing ? 'installing...' : 'waiting';
         });
+    }
+
+    // ── Google API-dependent init (sau khi GIS + modules load xong) ──
+    function initWithGoogle() {
+        OAuthClient.init(OAUTH_CLIENT_ID);
+        loadAuthState(); // restore currentUser từ localStorage
+
+        if (!OAuthClient.isSignedIn()) {
+            // Chưa có token → Wizard (first time hoặc đã logout)
+            Wizard.show();
+        } else {
+            // Có token → khởi động bình thường
+            SheetsAPI.spreadsheetId = localStorage.getItem('productSnapSheetId');
+            if (currentUser) {
+                applyRoleUI();
+                updateConnectionStatus();
+                setupAutoSync();
+                syncFromCloud().catch(e => console.warn('[app] initial sync failed:', e));
+            } else {
+                // Token có nhưng chưa login app → show login modal
+                showLoginModal();
+            }
+        }
+    }
+
+    if (window._gApiReady) {
+        initWithGoogle();
+    } else {
+        document.addEventListener('google-api-ready', initWithGoogle, { once: true });
     }
 });
 

@@ -1,4 +1,4 @@
-let currentUser = null; // {id, username, role, department}
+let currentUser = null; // {id, username, role}
 
 // ==================== AUTH ====================
 function isAdmin() {
@@ -10,13 +10,12 @@ function loadAuthState() {
     if (saved) {
         try {
             const u = JSON.parse(saved);
-            // P0: reject offline fallback users (id='offline') — require real API auth
             if (u && u.id && u.id !== 'offline' && u.username && u.role) {
                 currentUser = u;
             } else {
                 localStorage.removeItem('productSnapUser');
             }
-        } catch (e) { currentUser = null; }
+        } catch { currentUser = null; }
     }
 }
 
@@ -26,7 +25,6 @@ function saveAuthState() {
 }
 
 function showLoginModal() {
-    // P3: use .active class consistent with all other modals
     openModal('modal-login');
     const usernameInput = document.getElementById('login-username');
     if (usernameInput) setTimeout(() => usernameInput.focus(), 50);
@@ -45,93 +43,68 @@ async function submitLogin() {
         return;
     }
 
-    if (!API.url) {
-        // P0: show API URL setup section in the login modal
-        const setupSection = document.getElementById('login-setup-section');
-        if (setupSection) {
-            setupSection.style.display = 'block';
-            document.getElementById('login-api-url-input').focus();
-        }
-        showToast(currentLang === 'vi'
-            ? '⚙️ Nhập Apps Script URL bên dưới trước khi đăng nhập'
-            : '⚙️ Enter Apps Script URL below before logging in');
-        return;
-    }
-
     const btn = document.getElementById('login-submit');
     btn.disabled = true;
     btn.textContent = currentLang === 'vi' ? 'Đang đăng nhập...' : 'Logging in...';
 
     try {
-        const result = await API.login(username, password);
+        const result = await SheetsAPI.login(username, password);
         if (result && result.success) {
             currentUser = result.user;
             saveAuthState();
             document.getElementById('login-password').value = '';
             hideLoginModal();
             applyRoleUI();
+            setupAutoSync();
             showToast(currentLang === 'vi' ? `Xin chào, ${currentUser.username}!` : `Welcome, ${currentUser.username}!`);
-        } else if (!result) {
-            showToast(currentLang === 'vi'
-                ? 'Không thể kết nối server. Kiểm tra API URL.'
-                : 'Cannot reach server. Check API URL.');
-        } else if (result.error && result.error.includes('Users sheet')) {
-            showToast(currentLang === 'vi'
-                ? '⚠️ Chưa setup. Chạy initialSetup() trong Apps Script.'
-                : '⚠️ Not set up. Run initialSetup() in Apps Script.');
-        } else if (result.error && result.error.includes('Unknown action')) {
-            showToast(currentLang === 'vi'
-                ? '⚠️ Apps Script chưa cập nhật. Deploy lại.'
-                : '⚠️ Apps Script outdated. Redeploy.');
         } else {
-            showToast(t('invalid_credentials'));
+            showToast(currentLang === 'vi' ? 'Sai tên đăng nhập hoặc mật khẩu' : 'Invalid credentials');
         }
-    } catch (e) {
-        console.error('Login error:', e);
-        showToast(currentLang === 'vi'
-            ? 'Không thể kết nối server. Kiểm tra API URL.'
-            : 'Cannot reach server. Check API URL.');
+    } catch(e) {
+        console.error('[auth] login error:', e);
+        showToast(currentLang === 'vi' ? 'Không thể kết nối. Thử lại.' : 'Connection failed. Try again.');
     } finally {
         btn.disabled = false;
         btn.textContent = t('login');
     }
 }
 
-function logoutUser() {
+async function logoutUser() {
     currentUser = null;
     saveAuthState();
+    // Thu hồi OAuth token + xoá workspace cache
+    if (typeof OAuthClient !== 'undefined') await OAuthClient.signOut();
+    localStorage.removeItem('productSnapSheetId');
+    localStorage.removeItem('_ps_drive_root');
     applyRoleUI();
-    showLoginModal();
+    // Show setup wizard (user sẽ OAuth lại)
+    if (typeof Wizard !== 'undefined') Wizard.show();
 }
 
 function applyRoleUI() {
     const admin = isAdmin();
 
-    // Add category button
     const addCatBtn = document.getElementById('add-category');
     if (addCatBtn) addCatBtn.style.display = admin ? '' : 'none';
 
-    // Users section
     const usersSection = document.getElementById('section-users');
     if (usersSection) usersSection.style.display = admin ? '' : 'none';
 
-    // Current user display
     const userDisplay = document.getElementById('current-user-display');
     if (userDisplay) userDisplay.textContent = currentUser ? `${currentUser.username} (${currentUser.role})` : '-';
 
-    // Re-render category settings to apply admin-gated buttons
     renderCategoriesSettings();
     if (admin) renderUsersSettings();
 }
 
+// ==================== USERS MANAGEMENT ====================
 let _usersCache = null;
 let _usersCacheTs = 0;
 
 async function renderUsersSettings() {
     const container = document.getElementById('users-settings');
-    if (!container || !API.url) return;
+    if (!container || !SheetsAPI.spreadsheetId) return;
 
-    // P4: skip API call if cache is fresh (< 10 seconds)
     const now = Date.now();
     if (_usersCache && (now - _usersCacheTs) < 10000) {
         buildUsersSettingsDOM(container, _usersCache);
@@ -139,18 +112,16 @@ async function renderUsersSettings() {
     }
 
     try {
-        const result = await API.getUsers();
-        if (!result || !result.success) return;
-        _usersCache = result.users;
+        const users = await SheetsAPI.getUsers();
+        _usersCache = users;
         _usersCacheTs = Date.now();
         buildUsersSettingsDOM(container, _usersCache);
-    } catch (e) {
-        console.error('Failed to load users:', e);
+    } catch(e) {
+        console.error('[auth] Failed to load users:', e);
     }
 }
 
 function buildUsersSettingsDOM(container, users) {
-    // P1: safe DOM construction — no innerHTML with user-supplied data
     container.innerHTML = '';
     users.forEach(u => {
         const row = document.createElement('div');
@@ -161,7 +132,6 @@ function buildUsersSettingsDOM(container, users) {
         inner.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
 
         const info = document.createElement('div');
-
         const nameEl = document.createElement('strong');
         nameEl.textContent = u.username;
         info.appendChild(nameEl);
@@ -171,14 +141,6 @@ function buildUsersSettingsDOM(container, users) {
         roleTag.style.cssText = `margin-left:8px;background:${u.role === 'admin' ? 'var(--primary)' : 'var(--surface-2)'};color:${u.role === 'admin' ? 'white' : 'inherit'}`;
         roleTag.textContent = u.role;
         info.appendChild(roleTag);
-
-        if (u.department) {
-            const deptTag = document.createElement('span');
-            deptTag.className = 'field-tag';
-            deptTag.style.marginLeft = '4px';
-            deptTag.textContent = u.department;
-            info.appendChild(deptTag);
-        }
 
         inner.appendChild(info);
 
@@ -197,16 +159,15 @@ function buildUsersSettingsDOM(container, users) {
 
 async function deleteUser(userId) {
     if (!confirm(currentLang === 'vi' ? 'Xóa người dùng này?' : 'Delete this user?')) return;
-    const result = await API.deleteUser(userId);
+    const result = await SheetsAPI.deleteUser(userId);
     if (result && result.success) {
-        _usersCache = null; // invalidate cache
+        _usersCache = null;
         showToast(t('user_deleted'));
         renderUsersSettings();
     }
 }
 
 function addNewUser() {
-    // P2: use modal instead of prompt() — prompt() is blocked on mobile PWA
     document.getElementById('new-user-username').value = '';
     document.getElementById('new-user-password').value = '';
     document.getElementById('new-user-role').value = 'user';
@@ -215,9 +176,9 @@ function addNewUser() {
 }
 
 async function confirmAddUser() {
-    const username = document.getElementById('new-user-username').value.trim();
-    const password = document.getElementById('new-user-password').value.trim();
-    const role = document.getElementById('new-user-role').value;
+    const username   = document.getElementById('new-user-username').value.trim();
+    const password   = document.getElementById('new-user-password').value.trim();
+    const role       = document.getElementById('new-user-role').value;
     const department = document.getElementById('new-user-department').value.trim();
 
     if (!username || !password) {
@@ -228,14 +189,11 @@ async function confirmAddUser() {
     const btn = document.getElementById('confirm-add-user');
     btn.disabled = true;
     try {
-        const user = {
-            id: 'user_' + Date.now(),
+        const result = await SheetsAPI.addUser({
             username, password,
             role: role === 'admin' ? 'admin' : 'user',
-            department,
-            createdAt: new Date().toISOString()
-        };
-        const result = await API.addUser(user);
+            department
+        });
         if (result && result.success) {
             _usersCache = null;
             closeModal('modal-add-user');

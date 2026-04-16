@@ -5,8 +5,8 @@
 
 importScripts('./js/core/sw-idb.js');
 
-const CACHE_NAME = 'productsnap-v12';
-const APP_VERSION = '4.7';
+const CACHE_NAME = 'productsnap-v13';
+const APP_VERSION = '5.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -17,7 +17,10 @@ const ASSETS_TO_CACHE = [
   `./js/config.js?v=${APP_VERSION}`,
   `./js/i18n.js?v=${APP_VERSION}`,
   `./js/data.js?v=${APP_VERSION}`,
-  `./js/api.js?v=${APP_VERSION}`,
+  `./js/oauth.js?v=${APP_VERSION}`,
+  `./js/sheets-api.js?v=${APP_VERSION}`,
+  `./js/drive-api.js?v=${APP_VERSION}`,
+  `./js/wizard.js?v=${APP_VERSION}`,
   `./js/auth.js?v=${APP_VERSION}`,
   `./js/camera.js?v=${APP_VERSION}`,
   `./js/form.js?v=${APP_VERSION}`,

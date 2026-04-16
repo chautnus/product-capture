@@ -100,26 +100,18 @@ function deleteCategory(catId) {
 }
 
 function initSettingsListeners() {
+    // "Test Connection" → OAuth + tìm/tạo workspace
     document.getElementById('test-connection').addEventListener('click', async () => {
-        const url = document.getElementById('api-url-input').value.trim();
-        if (!url) { alert('Please enter the Apps Script URL'); return; }
-        localStorage.setItem('productSnapAPIUrl', url);
-        API.url = url;
         const statusEl = document.getElementById('connection-status');
         statusEl.textContent = t('connecting');
-        statusEl.className = 'field-tag type-boolean';
         try {
-            const result = await API.ping();
-            if (result && result.success) {
-                statusEl.textContent = t('connected'); statusEl.style.borderLeftColor = 'var(--success)';
-                document.getElementById('sync-now').style.display = 'block';
-                document.getElementById('sync-from-cloud').style.display = 'block';
-                showToast(t('connected'));
-            } else { throw new Error('Connection failed'); }
-        } catch (e) {
-            statusEl.textContent = t('not_connected'); statusEl.style.borderLeftColor = 'var(--danger)';
-            document.getElementById('sync-now').style.display = 'none';
-            document.getElementById('sync-from-cloud').style.display = 'none';
+            await OAuthClient.getToken();
+            await SheetsAPI.findOrCreateWorkspace();
+            updateConnectionStatus();
+            showToast(t('connected'));
+        } catch(e) {
+            statusEl.textContent = t('not_connected');
+            statusEl.style.borderLeftColor = 'var(--danger)';
             showToast(t('sync_failed'));
         }
     });
