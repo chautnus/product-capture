@@ -3,7 +3,7 @@ const APP_VERSION = '5.0';
 
 // ⚙️ Google Cloud Console → OAuth 2.0 Client ID (Web application)
 // Thay bằng Client ID thật sau khi tạo trên console.cloud.google.com
-const OAUTH_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const OAUTH_CLIENT_ID = '271749541534-0ohcjg65bmejf4gjhd4ve17quggp72q1.apps.googleusercontent.com';
 
 // Debug mode: enable with ?debug=1 in URL
 const DEBUG_MODE = new URLSearchParams(location.search).get('debug') === '1';
