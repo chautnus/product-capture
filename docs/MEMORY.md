@@ -1,84 +1,112 @@
-# ProductSnap — Module Split Progress
-last_updated: 2026-04-15
+# ProductSnap — Project Memory
+last_updated: 2026-04-16
 
-## v4.7 Split Status (app.js → 12 modules)
+---
 
-Plan: `C:\Users\Chau\.claude\plans\validated-bouncing-kettle.md`
+## Phiên bản hiện tại: v5.0 (commit 7e01965)
 
-| # | File | Lines | Status | Notes |
-|---|------|-------|--------|-------|
-| 1 | config.js | 41 | ✅ Done | APP_VERSION, DEFAULT_API_URL, DEBUG_MODE, toThumbnailUrl, attachDriveUrlFallback, initDebugOverlay |
-| 2 | i18n.js | 211 | ✅ Done | translations (EN+VI), currentLang, t(), updateTranslations() |
-| 3 | data.js | 240 | ✅ Done | ImageStore, appData, syncState, loadData/saveData, pending/deleted helpers |
-| 4 | api.js | 87 | ✅ Done | API object, all Apps Script calls, API.url init |
-| 5 | auth.js | 250 | ✅ Done | currentUser, login/logout, applyRoleUI, users CRUD |
-| 6 | camera.js | 83 | ✅ Done | capturedImages, cameraStream, start/capture/stop/switch/remove |
-| 7 | form.js | 260 | ✅ Done | selectedCategory, productNamesCache, renderCategories, renderDynamicForm, autocomplete |
-| 8 | products.js | 223 | ✅ Done | productSearchTerm, saveProduct, renderProducts |
-| 9 | detail.js | 114 | ✅ Done | showProductDetail, confirmDeleteProduct, deleteProductById |
-| 10 | settings.js | 100 | ✅ Done | editingCategoryId, renderCategoriesSettings, openEditCategory, removeField, deleteCategory |
-| 11 | sync.js | 200 | ✅ Done | setupAutoSync, syncPendingToCloud, syncFromCloud, mergeCategories, mergeProducts, updateConnectionStatus, updateLocalDataCount |
-| 12 | app.js | 380 | ✅ Done | SW block + MODALS + NAVIGATION + 5 init functions + DOMContentLoaded core |
+### Thay đổi lớn nhất so với v4.7
+- **GAS bị xoá hoàn toàn** — thay bằng Google Sheets API v4 trực tiếp từ browser
+- **OAuth 2.0** (Google Identity Services) thay username/password + GAS URL
+- **Multi-tenant**: mỗi Google account → tự động tạo spreadsheet riêng "ProductSnap Workspace"
+- **Cloud-Authoritative Pull**: `replaceFromCloud()` thay merge — cloud luôn thắng (trừ pending items)
+- **Setup Wizard**: tự động khi chưa có OAuth token, inject HTML vào DOM (không sửa index.html)
 
-## v4.7 CSS Split (app.css → 8 modules)
-- css/variables.css, layout.css, camera.css, form.css, products.css, settings.css, nav.css, overlays.css
-- app.css: 16 lines (@import only + @media responsive)
-- nav height bug fixed: padding-bottom: calc(80px + env(safe-area-inset-bottom))
-- sw.js: bumped to v12, ASSETS_TO_CACHE has all 19 js/css files
-- Bug fixed: config.js + i18n.js had export/import keywords removed (global scope restored)
+---
 
-## Post-split TODOs ✅
-- [x] Update index.html: 12 script tags with js/ prefix, CSS v=4.7
-- [x] Update sw.js: ASSETS_TO_CACHE updated, bump to v12
-- [x] Fix app.css: nav height bug
-- [x] Fix ES module export/import bug in config.js + i18n.js
-- [x] git push v4.7
+## Module Map — v5.0
 
-## Sync Bug Fix Plan (active)
-Plan: `C:\Users\Chau\.claude\plans\twinkling-puzzling-dongarra.md`
+| # | File | Lines | Vai trò |
+|---|------|-------|---------|
+| 1 | `js/config.js` | 74 | APP_VERSION='5.0', OAUTH_CLIENT_ID, dynamic script loader, debug overlay |
+| 2 | `js/i18n.js` | 220 | translations (EN+VI), currentLang, t(), updateTranslations() |
+| 3 | `js/data.js` | 255 | ImageStore(IndexedDB), appData, syncState, loadData/saveData, pending helpers |
+| 4 | `js/oauth.js` | 99 | **NEW** GIS token client, auto-refresh, revoke |
+| 5 | `js/sheets-api.js` | 231 | **NEW** Sheets API v4 wrapper — CRUD cho categories/products/users |
+| 6 | `js/drive-api.js` | 88 | **NEW** Drive API v3 — upload ảnh, tạo folder tự động |
+| 7 | `js/wizard.js` | 165 | **NEW** Setup wizard (DOM-injected, zero index.html changes) |
+| 8 | `js/auth.js` | 208 | currentUser, login/logout, applyRoleUI, users CRUD — dùng SheetsAPI |
+| 9 | `js/camera.js` | 83 | capturedImages, cameraStream, start/capture/stop/switch/remove |
+| 10 | `js/form.js` | 260 | ⚠️ LOCK selectedCategory, renderCategories, renderDynamicForm, autocomplete |
+| 11 | `js/products.js` | 223 | productSearchTerm, saveProduct, renderProducts |
+| 12 | `js/detail.js` | 114 | showProductDetail, confirmDeleteProduct, deleteProductById |
+| 13 | `js/settings.js` | 165 | renderCategoriesSettings, openEditCategory, initSettingsListeners |
+| 14 | `js/sync.js` | 177 | setupAutoSync, syncPendingToCloud, syncFromCloud, replaceFromCloud |
+| 15 | `js/app.js` | 214 | MODALS + NAVIGATION + init functions + DOMContentLoaded (google-api-ready pattern) |
+| 16 | `sw.js` | 201 | Cache v13, Share Target API, offline caching |
 
-| # | Bug | Root Cause | Status |
-|---|-----|-----------|--------|
-| 1 | Duplicate records | saveProduct() no ID check before appendRow | 🔒 Needs GAS split first |
-| 2 | Slow upload | Sequential Drive API (structural) | ⏸ Deferred |
-| 3 | Pending never clears | No detail UI, stuck isSyncing flag | 🔄 Phase 1 |
-| 4 | Categories don't sync cross-device | setupAutoSync has no interval, no pull after push | 🔄 Phase 1 |
-| 5 | Version warning (apiVersion 4.6 vs 4.7) | GAS not redeployed | 🔒 Needs GAS split first |
+> ⚠️ **SYSTEM LOCK**: `form.js` (260) và `data.js` (255) > 250 lines — cần `/split-plan` trước khi sửa
 
-### Phase 1 ✅ DONE (commit 3277a72)
-- [x] setupAutoSync: recursive pollCloud() every 2min
-- [x] syncPendingToCloud: pull from cloud after successful push
-- [x] syncPendingToCloud: isSyncing stuck guard (3min, reset in finally)
-- [x] index.html: #pending-detail expandable list + clear button
-- [x] js/data.js: updatePendingBadge O(N) grouped display
-- [x] js/app.js: clear-stuck-pending click handler
+---
 
-### Phase 2 — /split-plan google-apps-script.js (1048 lines, SYSTEM LOCK)
-Split thành thư mục gas/ (10 files, tất cả < 250 lines, GAS global scope):
-- [x] gas/config.js       (15 lines)   — CONFIG constants ✅
-- [x] gas/helpers.js      (59 lines)   — getImagesFolderId, updateSetting, parseJSON, parseImageCell ✅
-- [x] gas/columns.js      (98 lines)   — getDataColumns, addColumn, syncFieldsToColumns, ensureColumnExists ✅
-- [x] gas/product-names.js (67 lines)  — getProductNames, addProductName ✅
-- [x] gas/categories.js   (83 lines)   — getCategories, saveCategory, deleteCategory ✅ (apiVersion→4.7)
-- [x] gas/users.js        (117 lines)  — loginUser, getUsers, addUser, updateUser, deleteUser ✅
-- [x] gas/products.js     (207 lines)  — getData, saveProduct (LockService+ID check), uploadImages, getOrCreateSubfolder, deleteProduct ✅
-- [x] gas/sync.js         (75 lines)   — syncAll ✅
-- [x] gas/setup.js        (148 lines)  — initialSetup, createImagesFolder ✅
-- [x] gas/webapp.js       (93 lines)   — doGet, doPost ✅
-- [x] gas/tests.js        (28 lines)   — test functions ✅
-Note: GAS multi-file = tất cả .gs trong cùng project chia sẻ global scope, không cần import
+## Sync Architecture — Cloud-Authoritative Pull
 
-### Phase 3 — google-apps-script.js (after split)
-- [x] saveProduct(): LockService + ID check before appendRow ✅
-- [x] apiVersion: '4.6' → '4.7' (getCategories + getData) ✅
-- [x] Assembled from gas/ files into google-apps-script.js ✅
+```
+WRITE (online):  UI → SheetsAPI.save*() → syncFromCloud() → replaceFromCloud()
+WRITE (offline): UI → pendingChanges queue → khi online → push → pull
+READ:            local cache + background poll mỗi 2 phút
+```
 
-### Phase 4 ✅ DONE (commit 42ebebb)
-- [x] gas/ split: 11 files committed + pushed
-- [x] google-apps-script.js assembled + pushed
-- [ ] Redeploy Apps Script in GAS editor (manual — user pending)
+### replaceFromCloud() logic
+- Items trong `pendingChanges` → giữ nguyên local (uncommitted)
+- Items có `_deleted=TRUE` từ cloud → bỏ qua
+- Tất cả còn lại → cloud wins, replace local
 
-### Phase 5 ✅ DONE — Category sync bugs
-- [x] Bug A: `confirm-add-category` → `addToPending('CREATE_CATEGORY', newCat)` added (js/app.js)
-- [x] Bug B: `confirm-edit-category` → `addToPending('UPDATE_CATEGORY', {...category})` added (js/app.js)
-- [x] Split: `initSettingsListeners` moved app.js→settings.js (app.js: 275→204 lines)
+---
+
+## Google Cloud Console (1 lần, đã làm)
+- Project: ProductSnap
+- APIs enabled: Google Sheets API + Google Drive API
+- OAuth Client ID (Web): `271749541534-0ohcjg65bmejf4gjhd4ve17quggp72q1.apps.googleusercontent.com`
+- Authorized JS origins: `https://chautnus.github.io`
+- `OAUTH_CLIENT_ID` đã set trong `js/config.js` line 6
+
+---
+
+## Spreadsheet Schema — "ProductSnap Workspace"
+
+### Sheet "Data"
+| Col | A | B | C | D | E | F | G | H | I+ |
+|-----|---|---|---|---|---|---|---|---|---|
+| | ID | Category | Created At | Images (URLs) | Name | Price | Data JSON | _deleted | Dynamic cols |
+
+### Sheet "Categories"
+| Col | A | B | C | D | E | F | G |
+|-----|---|---|---|---|---|---|---|
+| | ID | Name EN | Name VI | Icon | Fields JSON | Updated At | _deleted |
+
+### Sheet "Users"
+| Col | A | B | C | D | E |
+|-----|---|---|---|---|---|
+| | ID | Username | Password | Role | Created At |
+
+> Soft-delete: `_deleted=TRUE` (không xoá row) — `getProducts`/`getCategories` filter rows này
+
+---
+
+## Commit History (key milestones)
+
+| Commit | Version | Mô tả |
+|--------|---------|-------|
+| 3277a72 | 4.7-beta | Sync bugs phase 1: autoSync poll, isSyncing guard, pending detail UI |
+| 42ebebb | 4.7 | GAS split (gas/ 11 files), LockService dedup, apiVersion 4.7 |
+| e4bb110 | 4.7 | Category sync fix: addToPending trong confirm-add/edit handlers |
+| d962e17 | 5.0 | **BREAKING**: GAS → Sheets API + OAuth, multi-tenant, Cloud-Authoritative Pull |
+| 7e01965 | 5.0 | Set real OAuth Client ID |
+
+---
+
+## Script Load Order (Dynamic — từ config.js)
+
+index.html loads synchronously: `config.js → i18n.js → data.js → auth.js → camera.js → form.js → products.js → detail.js → settings.js → sync.js → app.js`
+
+config.js dynamic loads (async chain, sau đó dispatch `google-api-ready`):
+`GIS (accounts.google.com) → oauth.js → sheets-api.js → drive-api.js → wizard.js`
+
+app.js lắng nghe `google-api-ready` event → `initWithGoogle()` → OAuthClient.init() → Wizard hoặc syncFromCloud()
+
+---
+
+## Plans
+- v4.7 split: `C:\Users\Chau\.claude\plans\validated-bouncing-kettle.md`
+- v5.0 sync redesign: `C:\Users\Chau\.claude\plans\twinkling-puzzling-dongarra.md`
