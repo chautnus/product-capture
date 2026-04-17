@@ -93,7 +93,7 @@ const SheetsAPI = {
 
     async _initHeaders() {
         await this._put('Data!A1:H1',         [['ID','Category','Created At','Images','Name','Price','Data JSON','_deleted']]);
-        await this._put('Categories!A1:G1',   [['ID','Name EN','Name VI','Icon','Fields JSON','Updated At','_deleted']]);
+        await this._put('Categories!A1:H1',   [['ID','Name EN','Name VI','Icon','Fields JSON','Updated At','_deleted','Key']]);
         await this._put('Users!A1:E1',        [['ID','Username','Password','Role','Created At']]);
         await this._put('ProductNames!A1:A1', [['Name']]);
     },
@@ -101,7 +101,7 @@ const SheetsAPI = {
     // ── Categories ────────────────────────────────────────────────────────
 
     async getCategories() {
-        const data = await this._get('Categories!A:G');
+        const data = await this._get('Categories!A:H');
         const rows = data.values || [];
         const cats = [];
         for (let i = 1; i < rows.length; i++) {
@@ -109,16 +109,17 @@ const SheetsAPI = {
             if (!r[0] || r[6] === 'TRUE') continue;
             let fields = [];
             try { fields = JSON.parse(r[4] || '[]'); } catch {}
-            cats.push({ id: r[0], name: { en: r[1]||'', vi: r[2]||'' }, icon: r[3]||'📦', fields, updatedAt: r[5]||'' });
+            cats.push({ id: r[0], name: { en: r[1]||'', vi: r[2]||'' }, icon: r[3]||'📦',
+                        fields, updatedAt: r[5]||'', key: r[7] || r[0] });
         }
         return { success: true, categories: cats, serverTimestamp: Date.now() };
     },
 
     async saveCategory(cat) {
         const row = [cat.id, cat.name?.en||'', cat.name?.vi||'', cat.icon||'📦',
-                     JSON.stringify(cat.fields||[]), new Date().toISOString(), ''];
+                     JSON.stringify(cat.fields||[]), new Date().toISOString(), '', cat.key || cat.id];
         const ri = await this._findRowById('Categories', cat.id);
-        if (ri > 0) await this._put(`Categories!A${ri}:G${ri}`, [row]);
+        if (ri > 0) await this._put(`Categories!A${ri}:H${ri}`, [row]);
         else        await this._append('Categories', row);
         return { success: true, category: cat };
     },
@@ -156,9 +157,13 @@ const SheetsAPI = {
         const base64s = (product.images||[]).filter(img => img.startsWith('data:'));
         for (let i = 0; i < base64s.length; i++) {
             try {
+                // Dùng category.key làm tên folder (fallback về category ID)
+                const _cat = (typeof appData !== 'undefined')
+                    ? appData.categories?.find(c => c.id === product.category) : null;
+                const _folderName = _cat?.key || product.category;
                 const url = await DriveAPI.uploadImage(
                     base64s[i], `img_${i}_${Date.now()}.jpg`,
-                    product.category, product.data?.name);
+                    _folderName, product.data?.name);
                 imageUrls.push(url);
             } catch(e) { console.warn('[sheets] image upload failed', e); }
         }

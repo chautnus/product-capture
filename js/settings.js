@@ -42,6 +42,20 @@ function openEditCategory(catId) {
     document.getElementById('edit-category-name-vi').value = category.name.vi || '';
     document.getElementById('edit-category-icon').value = category.icon || '';
 
+    // Inject Key input (index.html LOCKED — inject dynamically)
+    if (!document.getElementById('edit-category-key-group')) {
+        const keyGroup = document.createElement('div');
+        keyGroup.id = 'edit-category-key-group';
+        keyGroup.style.cssText = 'margin-top:10px;';
+        keyGroup.innerHTML = `<label style="font-size:0.82rem;color:var(--text-secondary);display:block;margin-bottom:4px;">
+            🗂 Key — tên folder Drive (chỉ chữ thường, dấu gạch ngang)
+        </label>
+        <input id="edit-category-key" class="form-input" placeholder="vd: plants, do-go, son-nuoc">`;
+        const fieldsEl = document.getElementById('edit-category-fields');
+        fieldsEl?.parentNode?.insertBefore(keyGroup, fieldsEl);
+    }
+    document.getElementById('edit-category-key').value = category.key || category.id;
+
     renderEditCategoryFields(category);
     openModal('modal-edit-category');
 }

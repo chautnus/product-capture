@@ -1,3 +1,23 @@
+// ── v4.7 → v5.0 backwards-compat shim ────────────────────────────────────────
+// form.js (260L LOCKED) + data.js (255L LOCKED) still reference the old API
+// object from v4.7 GAS. This shim bridges calls to SheetsAPI so locked files
+// don't need touching. Using var so it's reachable as a true global.
+var API = {
+    get url() {
+        return (typeof SheetsAPI !== 'undefined' && SheetsAPI.spreadsheetId) ? 'v5' : null;
+    },
+    async getProductNames(category) {
+        if (!SheetsAPI?.spreadsheetId) return [];
+        const names = await SheetsAPI.getProductNames();
+        return names.map(n => ({ name: n, category: category || '' }));
+    },
+    async addProductName(name, category) {
+        if (!SheetsAPI?.spreadsheetId) return null;
+        await SheetsAPI.addProductName(name);
+        return { productName: { name, category: category || '' } };
+    }
+};
+
 // ==================== MODALS ====================
 function openModal(modalId) {
     document.getElementById(modalId).classList.add('active');
@@ -126,6 +146,8 @@ function initModalListeners() {
         category.name.en = document.getElementById('edit-category-name').value.trim() || category.name.en;
         category.name.vi = document.getElementById('edit-category-name-vi').value.trim() || category.name.vi;
         category.icon = document.getElementById('edit-category-icon').value.trim() || category.icon;
+        const keyVal = document.getElementById('edit-category-key')?.value.trim();
+        if (keyVal) category.key = keyVal;
         addToPending('UPDATE_CATEGORY', { ...category });
         saveData(); renderCategories(); renderCategoriesSettings(); closeModal('modal-edit-category');
         showToast(currentLang === 'vi' ? 'Đã lưu thay đổi' : 'Changes saved');
