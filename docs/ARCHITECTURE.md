@@ -52,12 +52,12 @@
 | `js/i18n.js` | 220 | EN/VI translations |
 | `js/data.js` | 255 ⚠️LOCK | appData, syncState, ImageStore (IndexedDB), pending helpers |
 | `js/form.js` | 260 ⚠️LOCK | Dynamic forms, renderCategories, autocomplete |
-| `js/camera.js` | 83 | Camera capture, gallery, thumbnail strip |
-| `js/products.js` | 223 | renderProducts, saveProduct (client-side) |
+| `js/camera.js` | 130 | Camera capture, gallery, thumbnail strip, **fetchImageAsBase64, handleWebImport** |
+| `js/products.js` | 224 | renderProducts, saveProduct (client-side), **lastCategory tracking** |
 | `js/detail.js` | 114 | Product detail modal, delete |
-| `js/settings.js` | 165 | Settings UI, categories CRUD |
+| `js/settings.js` | 194 | Settings UI, categories CRUD, **BOOKMARKLET_BODY + inject section** |
 | `js/sync.js` | 177 | syncPendingToCloud, syncFromCloud, replaceFromCloud, poll |
-| `js/app.js` | 214 | Event listeners, DOMContentLoaded, google-api-ready handler |
+| `js/app.js` | 224 | Event listeners, DOMContentLoaded, google-api-ready handler, **?import= detection** |
 
 ---
 
@@ -191,6 +191,49 @@ function replaceFromCloud(cloudCats, cloudProds) {
 3. Redirect → `./index.html?shared=true`
 4. App detect `?shared=true` → message SW → nhận base64 → thêm vào `capturedImages`
 5. Switch Capture tab → hiện ảnh shared
+
+---
+
+## Bookmarklet Import API
+
+```
+Supplier website (any origin)          ProductSnap (GitHub Pages)
+─────────────────────────────          ──────────────────────────
+User clicks bookmark
+    │
+    ▼
+BOOKMARKLET_BODY executes:
+  querySelectorAll('img')
+  filter naturalWidth/Height > 80px
+  render overlay (DOM inject)
+  user selects images (Set<index>)
+    │
+    ▼ window.location.href =
+      PS + '?import=' + encodeURIComponent(urls.join(','))
+                                              │
+                                              ▼
+                                    DOMContentLoaded:
+                                      parse _importUrls
+                                      renderCategories()  ← must run first
+                                      handleWebImport(urls)
+                                        fetchImageAsBase64(url)
+                                          ├─ fetch CORS → base64 ✓
+                                          └─ CORS fail → store URL string
+                                        capturedImages.push(...)
+                                        renderCapturedImages()
+                                        auto-select lastCategory
+                                        renderDynamicForm()
+                                        history.replaceState() clean URL
+```
+
+### Escaping Gotcha
+`BOOKMARKLET_BODY` là JS template literal trong `settings.js`. Trong template literal:
+- `\'` → `'` (bare quote) — **phá vỡ single-quoted string trong bookmarklet**
+- Fix: dùng HTML entity `&apos;` thay `\'` cho giá trị bên trong attribute
+
+### Giới hạn
+- Ảnh có CORS strict policy → lưu URL string trực tiếp (không upload Drive được — chỉ hiển thị)
+- `window.location.href` navigate tab hiện tại → user mất trang nhà cung cấp (dùng Back để quay lại)
 
 ---
 

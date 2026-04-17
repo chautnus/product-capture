@@ -39,6 +39,7 @@ Shop owners (plants, pots, accessories) need to photograph and catalog inventory
 - As a user, I want to receive images shared from my phone gallery or messaging apps (Zalo, WhatsApp)
 - As a user, I want to browse my saved products organized by category and name
 - As an admin, I want to manage team members who access the same workspace
+- As a shop owner, I want to import product images from a supplier's website in one click — without saving manually
 
 ---
 
@@ -174,6 +175,19 @@ Shop owners (plants, pots, accessories) need to photograph and catalog inventory
 | UX-06 | Connection status (linked → Google Sheets URL) | ✅ Done |
 | UX-07 | Version display (v5.0) | ✅ Done |
 
+### 11. Web Image Import (Bookmarklet)
+
+| ID | Requirement | Status |
+|----|-------------|--------|
+| BMK-01 | Draggable bookmarklet link trong Settings | ✅ Done |
+| BMK-02 | Overlay popup trên trang nhà cung cấp — grid ảnh > 80px | ✅ Done |
+| BMK-03 | Multi-select ảnh với visual highlight + count | ✅ Done |
+| BMK-04 | Navigate ProductSnap với `?import=url1,url2,...` (không popup blocker) | ✅ Done |
+| BMK-05 | `fetchImageAsBase64()` — CORS-first fetch, fallback lưu URL string | ✅ Done |
+| BMK-06 | Auto-select danh mục cuối (localStorage `lastCategory`) | ✅ Done |
+| BMK-07 | `renderDynamicForm()` tự động sau khi import ảnh | ✅ Done |
+| BMK-08 | Xoá `?import=` khỏi URL bar sau khi xử lý | ✅ Done |
+
 ---
 
 ## Non-Functional Requirements
@@ -246,6 +260,7 @@ Shop owners (plants, pots, accessories) need to photograph and catalog inventory
 | P2 | Unsorted search | Search without diacritics (Vietnamese) |
 | P2 | Breadcrumb navigation | Back navigation in folder view |
 | P2 | Team invite flow | Share workspace link → member join với mã |
+| P2 | Bookmarklet CORS fallback | Ảnh CORS-blocked lưu URL string — không upload Drive được; cần proxy hoặc server-side fetch |
 | P3 | Export CSV/Excel | Download data as spreadsheet |
 | P3 | Offline image queue | Buffer large images until sync window |
 | P3 | QR code sharing | Share app URL via QR |

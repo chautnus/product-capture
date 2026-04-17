@@ -1,9 +1,9 @@
 # ProductSnap — Project Memory
-last_updated: 2026-04-16
+last_updated: 2026-04-16 (bookmarklet feature)
 
 ---
 
-## Phiên bản hiện tại: v5.0 (commit 7e01965)
+## Phiên bản hiện tại: v5.0 (commit b7f2a69)
 
 ### Thay đổi lớn nhất so với v4.7
 - **GAS bị xoá hoàn toàn** — thay bằng Google Sheets API v4 trực tiếp từ browser
@@ -11,6 +11,7 @@ last_updated: 2026-04-16
 - **Multi-tenant**: mỗi Google account → tự động tạo spreadsheet riêng "ProductSnap Workspace"
 - **Cloud-Authoritative Pull**: `replaceFromCloud()` thay merge — cloud luôn thắng (trừ pending items)
 - **Setup Wizard**: tự động khi chưa có OAuth token, inject HTML vào DOM (không sửa index.html)
+- **Bookmarklet Import**: lấy ảnh từ trang web bất kỳ → `?import=` URL param → auto-select category
 
 ---
 
@@ -26,13 +27,13 @@ last_updated: 2026-04-16
 | 6 | `js/drive-api.js` | 88 | **NEW** Drive API v3 — upload ảnh, tạo folder tự động |
 | 7 | `js/wizard.js` | 165 | **NEW** Setup wizard (DOM-injected, zero index.html changes) |
 | 8 | `js/auth.js` | 208 | currentUser, login/logout, applyRoleUI, users CRUD — dùng SheetsAPI |
-| 9 | `js/camera.js` | 83 | capturedImages, cameraStream, start/capture/stop/switch/remove |
+| 9 | `js/camera.js` | 130 | capturedImages, cameraStream, start/capture/stop/switch/remove, **fetchImageAsBase64, handleWebImport** |
 | 10 | `js/form.js` | 260 | ⚠️ LOCK selectedCategory, renderCategories, renderDynamicForm, autocomplete |
-| 11 | `js/products.js` | 223 | productSearchTerm, saveProduct, renderProducts |
+| 11 | `js/products.js` | 224 | productSearchTerm, saveProduct, renderProducts, **lastCategory tracking** |
 | 12 | `js/detail.js` | 114 | showProductDetail, confirmDeleteProduct, deleteProductById |
-| 13 | `js/settings.js` | 165 | renderCategoriesSettings, openEditCategory, initSettingsListeners |
+| 13 | `js/settings.js` | 194 | renderCategoriesSettings, openEditCategory, initSettingsListeners, **BOOKMARKLET_BODY + inject section** |
 | 14 | `js/sync.js` | 177 | setupAutoSync, syncPendingToCloud, syncFromCloud, replaceFromCloud |
-| 15 | `js/app.js` | 214 | MODALS + NAVIGATION + init functions + DOMContentLoaded (google-api-ready pattern) |
+| 15 | `js/app.js` | 224 | MODALS + NAVIGATION + init functions + DOMContentLoaded (google-api-ready pattern), **?import= detection** |
 | 16 | `sw.js` | 201 | Cache v13, Share Target API, offline caching |
 
 > ⚠️ **SYSTEM LOCK**: `form.js` (260) và `data.js` (255) > 250 lines — cần `/split-plan` trước khi sửa
@@ -93,6 +94,9 @@ READ:            local cache + background poll mỗi 2 phút
 | e4bb110 | 4.7 | Category sync fix: addToPending trong confirm-add/edit handlers |
 | d962e17 | 5.0 | **BREAKING**: GAS → Sheets API + OAuth, multi-tenant, Cloud-Authoritative Pull |
 | 7e01965 | 5.0 | Set real OAuth Client ID |
+| c53057c | 5.0 | feat: web image import via bookmarklet (camera.js, app.js, settings.js, products.js) |
+| cd1c48d | 5.0 | fix: popup blocker (window.location.href) + DOM timing (?import= sau renderCategories) |
+| b7f2a69 | 5.0 | fix: bookmarklet syntax error — `\'` trong template literal → `&apos;` |
 
 ---
 
@@ -107,6 +111,36 @@ app.js lắng nghe `google-api-ready` event → `initWithGoogle()` → OAuthClie
 
 ---
 
+## Bookmarklet Import Flow
+
+```
+Settings → kéo [📦 Save to ProductSnap] lên bookmark bar
+    ↓
+Mở trang nhà cung cấp → bấm bookmark
+    ↓
+BOOKMARKLET_BODY chạy trên trang đó:
+  - querySelectorAll('img') → filter naturalWidth/Height > 80px
+  - Render overlay grid (event listeners, không inline onclick)
+  - User chọn ảnh → Set<index> tracking → Import count hiển thị trực tiếp
+  - [✓ Import] → window.location.href = PS + '?import=' + encodeURIComponent(urls)
+    ↓
+ProductSnap load với ?import= param:
+  - DOMContentLoaded: parse _importUrls sớm
+  - Sau renderCategories() → handleWebImport(_importUrls)
+    - fetchImageAsBase64(url): fetch CORS-first, fallback lưu URL string
+    - capturedImages.push(...) → renderCapturedImages()
+    - auto-select localStorage('lastCategory') || categories[0]
+    - renderDynamicForm() → scroll to form
+    - history.replaceState() → xoá ?import= khỏi URL bar
+```
+
+### Gotchas đã fix
+- `\'` trong JS template literal → bare `'` → syntax error trong bookmarklet → dùng `&apos;`
+- `window.open()` bị popup blocker chặn → dùng `window.location.href`
+- `handleWebImport()` chạy trước `renderCategories()` → `.category-card` chưa có → dời xuống sau
+
+---
+
 ## Plans
 - v4.7 split: `C:\Users\Chau\.claude\plans\validated-bouncing-kettle.md`
-- v5.0 sync redesign: `C:\Users\Chau\.claude\plans\twinkling-puzzling-dongarra.md`
+- v5.0 sync redesign + bookmarklet: `C:\Users\Chau\.claude\plans\twinkling-puzzling-dongarra.md`
