@@ -81,3 +81,50 @@ function removeImage(idx) {
     capturedImages.splice(idx, 1);
     renderCapturedImages();
 }
+
+// ==================== WEB IMPORT (Bookmarklet) ====================
+
+// Fetch ảnh từ URL về base64 (CORS-first, fallback lưu URL string trực tiếp)
+async function fetchImageAsBase64(url) {
+    try {
+        const resp = await fetch(url, { mode: 'cors' });
+        if (!resp.ok) throw new Error('fetch failed');
+        const blob = await resp.blob();
+        return new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = e => res(e.target.result);
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        return url; // CORS fail → lưu URL string (hiển thị được, không upload Drive dạng base64)
+    }
+}
+
+async function handleWebImport(urls) {
+    switchScreen('capture');
+    showToast(currentLang === 'vi' ? `Đang tải ${urls.length} ảnh...` : `Loading ${urls.length} image(s)...`);
+
+    for (const url of urls) {
+        const imgData = await fetchImageAsBase64(url);
+        if (!capturedImages.includes(imgData)) capturedImages.push(imgData);
+    }
+    renderCapturedImages();
+
+    // Auto-chọn danh mục cuối cùng đã dùng (hoặc danh mục đầu tiên)
+    const lastCat = localStorage.getItem('lastCategory') || appData.categories[0]?.id;
+    if (lastCat) {
+        selectedCategory = lastCat;
+        document.querySelectorAll('.category-card').forEach(card => {
+            card.classList.toggle('active', card.dataset.categoryId === lastCat);
+        });
+        if (typeof renderDynamicForm === 'function') renderDynamicForm();
+    }
+
+    // Scroll xuống form
+    setTimeout(() => document.getElementById('dynamic-form')?.scrollIntoView({ behavior: 'smooth' }), 300);
+    showToast(currentLang === 'vi' ? `Đã tải ${capturedImages.length} ảnh` : `Loaded ${capturedImages.length} image(s)`);
+
+    // Xoá ?import= khỏi URL bar
+    window.history.replaceState({}, '', location.pathname);
+}

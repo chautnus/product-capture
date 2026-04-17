@@ -154,6 +154,13 @@ function initAuthListeners() {
 document.addEventListener('DOMContentLoaded', () => {
     initDebugOverlay();
     loadData();
+
+    // ── Bookmarklet import: detect ?import=url1,url2,... ──
+    const _importParam = new URLSearchParams(location.search).get('import');
+    if (_importParam) {
+        const _importUrls = decodeURIComponent(_importParam).split(',').filter(Boolean);
+        if (_importUrls.length && typeof handleWebImport === 'function') handleWebImport(_importUrls);
+    }
     initNavListeners();
     initCameraListeners();
     initModalListeners();

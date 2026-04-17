@@ -70,6 +70,7 @@ async function saveProduct() {
         // Queue for cloud sync — include images for upload
         // Images are loaded from ImageStore during sync (not stored in syncState)
         addToPending('CREATE_PRODUCT', { ...product, _pendingWithImages: true });
+        localStorage.setItem('lastCategory', selectedCategory); // track for web import
 
         // Bug 4: Reset form ONLY after save succeeds
         capturedImages = [];

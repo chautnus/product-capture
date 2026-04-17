@@ -1,5 +1,8 @@
 let editingCategoryId = null;
 
+// Bookmarklet body — injected as javascript: URL (minified, self-contained)
+const BOOKMARKLET_BODY = `var imgs=[];document.querySelectorAll('img').forEach(function(el){var s=el.currentSrc||el.src;if(s&&s.startsWith('http')&&el.naturalWidth>80&&el.naturalHeight>80&&!imgs.includes(s))imgs.push(s);});if(!imgs.length){return alert('Không tìm thấy ảnh nào!');}var d=document.createElement('div');d.id='__ps';d.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;font-family:sans-serif;';var safe=function(s){return s.replace(/"/g,'&quot;');};var html='<div style="background:#fff;border-radius:16px;padding:20px;max-width:90vw;max-height:85vh;overflow-y:auto;min-width:300px;"><div style="display:flex;justify-content:space-between;margin-bottom:12px;"><strong>📦 Save to ProductSnap<\\/strong><button onclick="document.getElementById(\\'__ps\\').remove()" style="border:none;background:none;font-size:1.2rem;cursor:pointer;">✕<\\/button><\\/div><div id="__pg" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">';imgs.forEach(function(src){html+='<div onclick="this.dataset.s=this.dataset.s==\\'1\\'?\\'0\\':\\'1\\';this.style.outline=this.dataset.s==\\'1\\'?\\'3px solid #4CAF50\\':\\'none\\';" style="cursor:pointer;border-radius:8px;overflow:hidden;aspect-ratio:1/1;background:#f0f0f0;" data-s="0" data-src="'+safe(src)+'"><img src="'+safe(src)+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentNode.style.display=\\'none\\'"><\\/div>';});html+='<\\/div><div style="display:flex;gap:8px;"><button onclick="(function(){var s=[];document.querySelectorAll(\\'#__pg [data-s=\\\\\\"1\\\\\\"]\\'). forEach(function(el){s.push(el.dataset.src);});if(!s.length){return alert(\\'Chọn ít nhất 1 ảnh\\');}window.open(PS+\\'?import=\\'+encodeURIComponent(s.join(\\',\\')),\\'_blank\\');document.getElementById(\\'__ps\\').remove();})()" style="flex:1;padding:11px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;">✓ Import ảnh đã chọn<\\/button><button onclick="document.getElementById(\\'__ps\\').remove()" style="padding:11px;background:#f5f5f5;border:none;border-radius:8px;cursor:pointer;">Huỷ<\\/button><\\/div><\\/div>';d.innerHTML=html;document.body.appendChild(d);`;
+
 // ==================== SETTINGS ====================
 function renderCategoriesSettings() {
     const container = document.getElementById('categories-settings');
@@ -162,4 +165,28 @@ function initSettingsListeners() {
             saveData(); renderProducts(); updateLocalDataCount(); showToast(t('data_cleared'));
         }
     });
+
+    // Inject bookmarklet installer section (không sửa index.html)
+    const _psUrl = location.origin + location.pathname;
+    const _bm = `javascript:(function(){var PS='${_psUrl}';` + BOOKMARKLET_BODY + `})();`;
+    const _section = document.createElement('div');
+    _section.className = 'settings-section';
+    _section.id = 'bookmarklet-section';
+    _section.innerHTML = `
+        <div class="settings-header">🔖 Import từ trang web</div>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin:8px 0;">
+            Kéo nút bên dưới vào thanh bookmark của trình duyệt. Sau đó khi xem trang sản phẩm bất kỳ, bấm bookmark đó để chọn ảnh.
+        </p>
+        <a id="bookmarklet-link" class="btn btn-secondary" draggable="true"
+           style="display:inline-flex;align-items:center;gap:8px;cursor:grab;">
+            📦 Save to ProductSnap
+        </a>
+        <p style="font-size:0.78rem;color:var(--text-secondary);margin:8px 0 0;">
+            ℹ️ Trên mobile: copy link → thêm bookmark thủ công → sửa URL thành link này.
+        </p>`;
+    const settingsScreen = document.getElementById('screen-settings');
+    if (settingsScreen && !document.getElementById('bookmarklet-section')) {
+        settingsScreen.appendChild(_section);
+        document.getElementById('bookmarklet-link').href = _bm;
+    }
 }
