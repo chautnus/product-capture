@@ -84,10 +84,13 @@ function removeImage(idx) {
 
 // ==================== WEB IMPORT (Bookmarklet) ====================
 
-// Fetch ảnh từ URL về base64 (CORS-first, fallback lưu URL string trực tiếp)
+// Fetch ảnh từ URL về base64 (CORS-first + 3s timeout, fallback lưu URL string trực tiếp)
 async function fetchImageAsBase64(url) {
     try {
-        const resp = await fetch(url, { mode: 'cors' });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000); // fail fast nếu CORS/server chậm
+        const resp = await fetch(url, { mode: 'cors', signal: controller.signal });
+        clearTimeout(timer);
         if (!resp.ok) throw new Error('fetch failed');
         const blob = await resp.blob();
         return new Promise((res, rej) => {
@@ -97,7 +100,7 @@ async function fetchImageAsBase64(url) {
             reader.readAsDataURL(blob);
         });
     } catch {
-        return url; // CORS fail → lưu URL string (hiển thị được, không upload Drive dạng base64)
+        return url; // CORS fail / timeout → lưu URL string
     }
 }
 
@@ -105,10 +108,11 @@ async function handleWebImport(urls) {
     switchScreen('capture');
     showToast(currentLang === 'vi' ? `Đang tải ${urls.length} ảnh...` : `Loading ${urls.length} image(s)...`);
 
-    for (const url of urls) {
-        const imgData = await fetchImageAsBase64(url);
+    // Promise.all: fetch song song thay vì tuần tự — tổng thời gian = max(từng ảnh) thay vì sum
+    const results = await Promise.all(urls.map(url => fetchImageAsBase64(url)));
+    results.forEach(imgData => {
         if (!capturedImages.includes(imgData)) capturedImages.push(imgData);
-    }
+    });
     renderCapturedImages();
 
     // Auto-chọn danh mục cuối cùng đã dùng (hoặc danh mục đầu tiên)

@@ -140,7 +140,6 @@ function initSettingsListeners() {
         btn.disabled = false; btn.textContent = t('sync_from_cloud');
     });
     document.getElementById('cloud-refresh-btn')?.addEventListener('click', async () => {
-        if (!API.url) { showToast(currentLang === 'vi' ? 'Chưa cấu hình API URL (vào Settings)' : 'API URL not configured'); return; }
         const btn = document.getElementById('cloud-refresh-btn');
         btn.textContent = '⏳'; btn.disabled = true;
         try { await syncFromCloud(); showToast(currentLang === 'vi' ? 'Đã tải dữ liệu từ Cloud!' : 'Loaded from Cloud!'); }
