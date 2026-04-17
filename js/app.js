@@ -155,12 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initDebugOverlay();
     loadData();
 
-    // ── Bookmarklet import: detect ?import=url1,url2,... ──
-    const _importParam = new URLSearchParams(location.search).get('import');
-    if (_importParam) {
-        const _importUrls = decodeURIComponent(_importParam).split(',').filter(Boolean);
-        if (_importUrls.length && typeof handleWebImport === 'function') handleWebImport(_importUrls);
-    }
+    // Parse ?import= sớm, nhưng gọi handleWebImport SAU renderCategories()
+    const _importUrls = (function() {
+        const p = new URLSearchParams(location.search).get('import');
+        return p ? decodeURIComponent(p).split(',').filter(Boolean) : [];
+    })();
+
     initNavListeners();
     initCameraListeners();
     initModalListeners();
@@ -169,6 +169,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderCategories();
     renderCapturedImages();
+
+    // ── Bookmarklet import: chạy sau renderCategories() để .category-card tồn tại ──
+    if (_importUrls.length && typeof handleWebImport === 'function') handleWebImport(_importUrls);
     updateLocalDataCount();
     updatePendingBadge();
     updateLastSyncDisplay();
