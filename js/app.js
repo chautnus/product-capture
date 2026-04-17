@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Parse ?import= sớm, nhưng gọi handleWebImport SAU renderCategories()
     const _importUrls = (function() {
         const p = new URLSearchParams(location.search).get('import');
-        return p ? decodeURIComponent(p).split(',').filter(Boolean) : [];
+        return p ? p.split(',').filter(Boolean) : [];
     })();
 
     initNavListeners();

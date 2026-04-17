@@ -71,7 +71,7 @@ function renderCapturedImages() {
     const container = document.getElementById('captured-images');
     container.innerHTML = capturedImages.map((img, idx) => `
         <div class="captured-img">
-            <img src="${img}" alt="Captured ${idx + 1}">
+            <img src="${img}" alt="Captured ${idx + 1}" referrerpolicy="no-referrer">
             <button class="remove-btn" onclick="removeImage(${idx})">×</button>
         </div>
     `).join('');
